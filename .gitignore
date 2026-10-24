@@ -42,3 +42,7 @@ replay_*.log
 # agents
 
 .worktrees/
+
+# game test runs
+
+logs/
