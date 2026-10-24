@@ -1,0 +1,28 @@
+{
+	"schemaVersion": 1,
+	"id": "tokio",
+	"version": "${version}",
+	"name": "Tokio",
+	"description": "Connects your world to Tokio, so your TikTok LIVE can spawn mobs, give items and run commands.",
+	"authors": [
+		"Italo Alfaro"
+	],
+	"contact": {
+		"homepage": "https://tokio.ialfaro.com",
+		"sources": "https://github.com/tokio-app/minecraft-mod"
+	},
+	"license": "MIT",
+	"icon": "assets/tokio/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"main": [
+			"com.ialfaro.tokio.Tokio"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

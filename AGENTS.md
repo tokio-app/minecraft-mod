@@ -1,0 +1,83 @@
+# AGENTS.md
+
+## Project
+
+A Fabric mod for Minecraft: Java Edition **26.3** that connects the world the player opens to Tokio, the Electron app at `../tokio` (`tokio-app/tokio`). Tokio's Games page runs Minecraft commands when TikTok LIVE events fire, and this mod is how they reach Java Edition. Bedrock Edition connects to Tokio by itself; Java can't take outside commands without a mod.
+
+- **Single-player only:** worlds the player opens, and LAN worlds they host. `fabric.mod.json` says `"environment": "client"`, so the mod never loads on a dedicated server. The code runs in the integrated server.
+- **Connecting:** the world's host types `/tokio connect [address]` (default `localhost:37892`), as Bedrock's `/connect`. There is no auto-connect or retry.
+- **Commands:** they run as the host player, at their position, with gamemaster permission (level 2), so no cheats are needed. Their feedback goes back to Tokio, not to chat.
+- `PROTOCOL.md` is the contract with Tokio. Change it, and Tokio's `MinecraftConnection`, together.
+
+Repository `tokio-app/minecraft-mod` (not created yet; local development only). MIT.
+
+Stack: Java 25, Gradle 9.8.2 (wrapper), Fabric Loom 1.19 (`net.fabricmc.fabric-loom`), Fabric Loader 0.20.1, Fabric API 0.165.0+26.3. 26.x ships unobfuscated, so there are no mappings: the code uses Mojang's own names. The WebSocket client is the JDK's `java.net.http`, and JSON is the game's Gson, so the mod has no dependency of its own.
+
+## Commands
+
+Gradle's daemon needs JDK 25 (`gradle/gradle-daemon-jvm.properties`), and it can't find the Microsoft build by itself here. Set `JAVA_HOME` for each command, e.g. in Git Bash:
+
+```sh
+export JAVA_HOME="/c/Program Files/Microsoft/jdk-25.0.4.101-hotspot"
+./gradlew build        # compile, unit tests, server game tests; the jar in build/libs/
+./gradlew test         # unit tests only
+./gradlew runGameTest  # server game tests only
+./gradlew runClient    # the dev client with the mod, as the offline player "Player"
+./gradlew genSources   # decompile Minecraft, to read its classes (Mojang's names)
+```
+
+Verify changes with `./gradlew build`. Check a change to commands or the connection in the dev client too, against Tokio (see Testing).
+
+## Agent models
+
+- **Planning:** Opus 5.5 at high effort. Be 90–95% confident in the plan before implementing or handing off; otherwise keep reading code or ask the user.
+- **Implementation subagents:** Opus 5.5 at high effort.
+
+## Layout
+
+```
+src/main/java/com/ialfaro/tokio/
+  Tokio.java            the entrypoint (ModInitializer)
+  connection/           the WebSocket to Tokio, no Minecraft classes:
+                        TokioClient, Commands, CommandResult, ConnectionListener
+  game/                 the Minecraft side: running commands, /tokio, chat lines
+src/main/resources/     fabric.mod.json, assets/tokio/icon.png
+src/test/java/          JUnit tests (connection/ against a fake Tokio)
+src/gametest/           server game tests and their fabric.mod.json (mod id tokio-test)
+```
+
+## Architecture
+
+- **Threads:**
+  - `TokioClient` gets frames on the JDK's HTTP client threads.
+  - `Commands.run` hops to the server thread (`MinecraftServer.execute`), the only place that touches the world, and completes there.
+  - Answers go out one at a time: the JDK's WebSocket refuses a send while another is pending.
+- **The world:**
+  - The connection belongs to the world. Closing it disconnects.
+  - `/tokio` is only for the singleplayer owner, so a LAN guest can't point the host's world at their own socket and run commands with the host's permission.
+- **Text for the player:**
+  - Chat lines are short, plain sentences: "Connected to Tokio.", "Disconnected from Tokio. Another game connected to Tokio."
+  - No prefixes like `[Tokio]`, no colors beyond the game's own for errors.
+
+## Testing
+
+- **Unit tests** (`src/test`): the connection against Java-WebSocket standing in for Tokio. No Minecraft classes, so they're fast.
+- **Server game tests** (`src/gametest`):
+  - They run Tokio's command forms (`PROTOCOL.md` and Tokio's `gameCommands`) through the game's command dispatcher with mock players.
+  - They need `eula = true` in `build.gradle`, which agrees to the Minecraft EULA. The user agreed to it for these tests.
+- **Against Tokio:** run Tokio's built app with **Minecraft** on (its `drive-app` skill) and `./gradlew runClient`. Open a world, type `/tokio connect`, and use **Test** on the Games page.
+
+## Conventions
+
+- Tabs, as Fabric's template (`.editorconfig`). LF line endings, CRLF for `.bat`.
+- Commits follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`). Never add Co-Authored-By or "Generated with" lines.
+- Don't push or publish; the user does.
+- Keep `PROTOCOL.md`, the README's commands and Tokio's docs (`../tokio-web`, the Games page docs) in step with the code.
+
+## Licensing
+
+- The mod is MIT. Its jar holds only this project's code, resources and `LICENSE`. `THIRD_PARTY_NOTICES.md` lists what the build and tests use; keep it current when dependencies change.
+- Fabric Loader and Fabric API (Apache-2.0) are installed by players, not bundled.
+- Ask before adding any dependency, and never a copyleft one (GPL, AGPL, LGPL, MPL).
+- Don't copy code from other mods.
+- Keep "Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft." and the TikTok notice in the README. Don't put "Minecraft" in the mod's name.
