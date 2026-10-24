@@ -56,7 +56,8 @@ A `commandLine` that starts with `enableencryption` comes from a Tokio that does
 - Commands run in the world's server thread, in the order they come, as the world's host player, at their position (`~` and `@s` are the player).
 - They run with gamemaster permission (level 2, as command blocks), whatever the world's **Allow Commands**, so no cheats are needed.
 - Their feedback isn't shown in chat or sent to operators. It only goes back to Tokio.
-- A command that comes while the host isn't in the world fails with "The player isn't in the world yet."
+- A command that comes while the host isn't in the world fails with "The player isn't in the world yet.", and one that comes as the world closes with "The world is closing."
+- `/time set` that fails because the clock is already at that time (26.3 refuses it, e.g. night set twice in one tick by an action on every gift) counts as run: the world is as Tokio asked. The mod tells that error by its translation key, so it works in any language.
 
 ## Limits
 
