@@ -6,11 +6,13 @@ import com.ialfaro.tokio.connection.Commands;
 import com.mojang.authlib.GameProfile;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
@@ -73,12 +75,24 @@ public final class CommandRunner implements Commands {
 
 	/** Collects a command's feedback; nothing reaches the chat or the operators. */
 	private static final class Output implements CommandSource {
+		// /time set fails when the clock is already there, as when an action on
+		// every gift sets night twice: the world is as Tokio asked, so it ran
+		private static final Set<String> ALREADY = Set.of("commands.time.set.already_at_time_marker", "commands.time.set.already_at_time");
+
 		private final List<String> lines = new ArrayList<>();
 		private boolean success;
+		private boolean already;
 
 		@Override
 		public void sendSystemMessage(Component message) {
 			lines.add(message.getString());
+			if (already(message)) already = true;
+		}
+
+		// Its key, whatever the game's language; a failure wraps it in red
+		private static boolean already(Component message) {
+			if (message.getContents() instanceof TranslatableContents contents && ALREADY.contains(contents.getKey())) return true;
+			return message.getSiblings().stream().anyMatch(Output::already);
 		}
 
 		@Override
@@ -97,7 +111,7 @@ public final class CommandRunner implements Commands {
 		}
 
 		CommandResult result() {
-			if (success) return new CommandResult(true, lines.isEmpty() ? "" : lines.getLast());
+			if (success || already) return new CommandResult(true, lines.isEmpty() ? "" : lines.getLast());
 			// The first line is the error; a parse error's second shows where it is
 			return new CommandResult(false, lines.isEmpty() ? "The command failed." : lines.getFirst());
 		}

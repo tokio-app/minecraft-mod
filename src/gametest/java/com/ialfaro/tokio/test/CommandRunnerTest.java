@@ -75,6 +75,17 @@ public class CommandRunnerTest {
 	}
 
 	@GameTest
+	public void setsTheTimeItIsAlready(GameTestHelper helper) {
+		Player player = new Player(helper);
+		// An action on every gift sets night once per gift, in the same tick
+		run(helper, player, "time set day");
+		ok(helper, player, "time set night");
+		ok(helper, player, "time set night");
+		player.assertNoChat(helper);
+		helper.succeed();
+	}
+
+	@GameTest
 	public void failsAnUnknownMob(GameTestHelper helper) {
 		Player player = new Player(helper);
 		CommandResult result = run(helper, player, "summon minecraft:not_a_mob ~ ~ ~");
