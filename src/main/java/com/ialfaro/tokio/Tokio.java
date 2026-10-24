@@ -1,6 +1,10 @@
 package com.ialfaro.tokio;
 
+import com.ialfaro.tokio.game.TokioCommand;
+import com.ialfaro.tokio.game.WorldConnection;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,5 +19,7 @@ public class Tokio implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		CommandRegistrationCallback.EVENT.register((dispatcher, context, selection) -> TokioCommand.register(dispatcher));
+		ServerLifecycleEvents.SERVER_STOPPING.register(WorldConnection::close);
 	}
 }
