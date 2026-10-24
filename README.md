@@ -7,7 +7,7 @@ It works in single-player worlds, and in LAN worlds you host. Cheats aren't need
 ## Install
 
 1. Install [Fabric Loader](https://fabricmc.net/use/installer/) for Minecraft 26.3, and [Fabric API](https://modrinth.com/mod/fabric-api).
-2. Put the Tokio mod's jar in your `mods` folder.
+2. Download `tokio-<version>.jar` from the [latest release](https://github.com/tokio-app/minecraft-mod/releases/latest), and put it in your `mods` folder.
 
 ## Connect
 

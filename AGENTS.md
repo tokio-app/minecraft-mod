@@ -9,7 +9,7 @@ A Fabric mod for Minecraft: Java Edition **26.3** that connects the world the pl
 - **Commands:** they run as the host player, at their position, with gamemaster permission (level 2), so no cheats are needed. Their feedback goes back to Tokio, not to chat.
 - `PROTOCOL.md` is the contract with Tokio. Change it, and Tokio's `MinecraftConnection`, together.
 
-Repository `tokio-app/minecraft-mod` (not created yet; local development only). MIT.
+Repository `tokio-app/minecraft-mod`. Players download the jar from its GitHub releases. MIT.
 
 Stack: Java 25, Gradle 9.8.2 (wrapper), Fabric Loom 1.19 (`net.fabricmc.fabric-loom`), Fabric Loader 0.20.1, Fabric API 0.165.0+26.3. 26.x ships unobfuscated, so there are no mappings: the code uses Mojang's own names. The WebSocket client is the JDK's `java.net.http`, and JSON is the game's Gson, so the mod has no dependency of its own.
 
@@ -44,6 +44,8 @@ src/main/java/com/ialfaro/tokio/
 src/main/resources/     fabric.mod.json, assets/tokio/icon.png
 src/test/java/          JUnit tests (connection/ against a fake Tokio)
 src/gametest/           server game tests and their fabric.mod.json (mod id tokio-test)
+scripts/release-notes.sh  a release's notes, from the Conventional Commits since the last tag
+.github/workflows/release.yml  builds, tests and publishes the jar for a v<version> tag
 ```
 
 ## Architecture
@@ -66,6 +68,16 @@ src/gametest/           server game tests and their fabric.mod.json (mod id toki
   - They run Tokio's command forms (`PROTOCOL.md` and Tokio's `gameCommands`) through the game's command dispatcher with mock players.
   - They need `eula = true` in `build.gradle`, which agrees to the Minecraft EULA. The user agreed to it for these tests.
 - **Against Tokio:** run Tokio's built app with **Minecraft** on (its `drive-app` skill) and `./gradlew runClient`. Open a world, type `/tokio connect`, and use **Test** on the Games page.
+
+## Releasing
+
+Use the `release` skill (`.claude/skills/release/SKILL.md`), only when the user asks.
+
+1. Change `version` in `gradle.properties`, and commit it as `chore(release): <version>`.
+2. Tag it `v<version>` (lightweight) and push the commit and the tag. The user does the pushing.
+3. The Release workflow fails unless the tag matches `version`. It runs `./gradlew build` (unit and game tests) on JDK 25 and publishes a GitHub release, "Tokio for Minecraft <version>", with `tokio-<version>.jar` (not the `-sources` jar).
+
+The notes are `scripts/release-notes.sh <tag>`: the commits since the previous `v*` tag, grouped like Tokio's (breaking, features, fixes, performance, other), without merges and `chore(release)` commits. Without a tag it prints the next release's. A rerun only replaces the jar, so notes edited on GitHub are kept.
 
 ## Conventions
 
