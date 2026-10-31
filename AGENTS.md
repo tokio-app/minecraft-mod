@@ -61,6 +61,7 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
 - **Hazards** (`/tokio meteor [count]`, `/tokio laser [super [duper]]`):
   - Each is a `Hazard`, a block display that runs itself in `tick()` on the server. Clients get a plain block display, particles and sounds, all vanilla, so LAN guests without the mod see them. Don't add registry content (entities, blocks, particles): a vanilla client couldn't join.
   - `shouldBeSaved()` is false, so a world closed or a chunk unloaded midway keeps no stray meteor or beam.
+  - They aim at the ground or water under the player (`Hazard.groundUnder`), so one sent while they fly still lands on the ground. On the ground, that's their feet.
   - Clients with the mod draw a laser's beams, the block displays named `Laser.BEAM`, as beacon beams: `LaserRenderer` (the `client` entrypoint registers it) replaces the block display renderer and draws every other display as the game does. It also slides bright pulses down the beams and draws the thin aim beam wider. Glass plates for rings and an impact disc were tried and dropped: up close they read as floating panes.
   - Their blasts break blocks and start fires like TNT, or only hurt while `tnt_explodes` is off.
   - They need gamemaster permission on top of being the host. Tokio's commands have it; a world without cheats can't use them as free TNT.
@@ -75,8 +76,8 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
 - **Server game tests** (`src/gametest`):
   - They run Tokio's command forms (`PROTOCOL.md` and Tokio's `gameCommands`) through the game's command dispatcher with mock players.
   - They need `eula = true` in `build.gradle`, which agrees to the Minecraft EULA. The user agreed to it for these tests.
-  - `HazardsTest` starts `Meteor.fall` and `Laser.fire` itself: game tests have no world host, so `/tokio` isn't reachable there. Its tests pad their area so the blasts can't reach other tests, and force-load the chunks a meteor starts in, since a test loads only its own.
-  - The mod is client-only, so the game test server never runs `Tokio.onInitialize`: a test ticks what it registers itself, as the super laser test ticks `Night`. The super laser tests run in their own batch, `tokio-test:noon` (`src/gametest/resources/data/tokio-test/test_environment/`), which starts at noon, since other tests set the time. They share its one night.
+  - `HazardsTest` starts `Meteor.fall` and `Laser.fire` itself: game tests have no world host, so `/tokio` isn't reachable there. Its tests pad their area so the blasts can't reach other tests, and force-load the chunks a meteor starts in, since a test loads only its own. A test whose player is above its structure needs `skyAccess`: otherwise the barrier ceiling over the structure is the ground under them.
+  - The mod is client-only, so the game test server never runs `Tokio.onInitialize`: a test ticks what it registers itself, as the super laser test ticks `Night`. The super laser tests run in their own batch, `tokio-test:noon` (`src/gametest/resources/data/tokio-test/test_environment/`), which starts at noon, since other tests set the time. They share its one night. The test of `Night` alone runs in `tokio-test:noon_alone`, as any super laser beside it would hold the night.
 - **Against Tokio:** run Tokio's built app with **Minecraft** on (its `drive-app` skill) and `./gradlew runClient`. Open a world, type `/tokio connect`, and use **Test** on the Games page.
 
 ## Releasing

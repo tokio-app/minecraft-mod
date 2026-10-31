@@ -35,6 +35,17 @@ public class HazardsTest {
 		});
 	}
 
+	// Without a barrier ceiling over the test, which the player would be above
+	@GameTest(padding = 16, maxTicks = 200, skyAccess = true)
+	public void meteorLandsUnderAPlayerInTheAir(GameTestHelper helper) {
+		MockPlayer player = onAFloor(helper, Blocks.OBSIDIAN, 1);
+		BlockPos landing = BlockPos.containing(player.position());
+		// Higher than a rock falls from a blast in the air
+		player.setPos(player.position().add(0, 10, 0));
+		Meteor.fall(player, 1);
+		helper.succeedWhen(() -> helper.assertTrue(helper.getLevel().getBlockState(landing).is(Blocks.MAGMA_BLOCK), "No magma on the ground under the player"));
+	}
+
 	@GameTest(padding = 16, maxTicks = 200)
 	public void laserBlastsAHole(GameTestHelper helper) {
 		MockPlayer player = onAFloor(helper, Blocks.STONE, 1);

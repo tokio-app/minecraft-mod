@@ -58,23 +58,25 @@ public final class Meteor extends Hazard {
 	}
 
 	/**
-	 * Sends {@code count} meteors at the player. The first lands where they
-	 * stand, the rest around them, one after another.
+	 * Sends {@code count} meteors at the player. The first lands on the ground
+	 * under them, the rest around them, one after another.
 	 */
 	public static List<Meteor> fall(ServerPlayer player, int count) {
 		ServerLevel level = player.level();
 		RandomSource random = level.getRandom();
 		List<Meteor> meteors = new ArrayList<>();
 		for (int i = 0; i < count; i++) {
-			Vec3 target = player.position();
+			Vec3 spot = player.position();
 			int delay = 0;
 			if (i > 0) {
 				// Anywhere on the disk around the player, as likely
 				double angle = random.nextDouble() * Math.PI * 2;
 				double distance = SPREAD * Math.sqrt(random.nextDouble());
-				target = target.add(Math.cos(angle) * distance, 0, Math.sin(angle) * distance);
+				spot = spot.add(Math.cos(angle) * distance, 0, Math.sin(angle) * distance);
 				delay = 1 + random.nextInt(MAX_DELAY_TICKS);
 			}
+			// A player up in the air gets it on the ground below
+			Vec3 target = groundUnder(level, spot);
 			double angle = random.nextDouble() * Math.PI * 2;
 			Vec3 start = target.add(Math.cos(angle) * AWAY, HEIGHT, Math.sin(angle) * AWAY);
 			Meteor meteor = new Meteor(level, start, target, delay);

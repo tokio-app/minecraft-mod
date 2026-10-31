@@ -121,7 +121,7 @@ public final class Laser extends Hazard {
 		super(player.level());
 		this.player = player;
 		this.kind = kind;
-		this.target = player.position();
+		this.target = groundUnder(player.level(), player.position());
 		this.top = Math.max(player.level().getMaxY(), target.y) + ABOVE_BUILD_LIMIT;
 		double side = random.nextDouble() * Math.PI * 2;
 		this.tilt = new Quaternionf().rotationAxis(TILT, (float) Math.cos(side), 0, (float) Math.sin(side));
@@ -228,10 +228,10 @@ public final class Laser extends Hazard {
 		if (age >= AIM_DROP_TICKS) shimmer();
 	}
 
-	// Onto the player's feet, until they leave the world or its dimension
+	// Onto the ground under the player, until they leave the world or its dimension
 	private void follow() {
 		if (player.isRemoved() || player.level() != level()) return;
-		target = player.position();
+		target = groundUnder(serverLevel(), player.position());
 		setPos(target);
 	}
 
