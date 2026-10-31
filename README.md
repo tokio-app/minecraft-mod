@@ -22,8 +22,19 @@ Type it again each time you open the world.
 | `/tokio`                    | Says whether the world is connected to Tokio          |
 | `/tokio connect [address]`  | Connects to Tokio, at `localhost:37892` by default    |
 | `/tokio disconnect`         | Disconnects from Tokio                                |
+| `/tokio meteor [count]`     | Drops 1 to 100 meteors on you, 1 by default           |
+| `/tokio laser`              | Fires a laser at you from the sky                     |
 
-Only the world's host can use them.
+Only the world's host can use them. The meteor and the laser also need cheats on.
+
+## Meteors and lasers
+
+Tokio can send them for you, cheats or not: on a Java action in the **Games** page, add a **Command** step with `tokio meteor 5` or `tokio laser`.
+
+- **Meteor:** a burning rock falls from high in the sky to where you stand, and you have 2 seconds to get out of the way. It leaves a crater with a lump of magma and blackstone in it. With a count, the rest land around you, one after another.
+- **Laser:** a red beam follows you for 2 seconds, then stops. A second later it fires and blasts a hole where it stands.
+
+Their explosions break blocks and start fires, like TNT. With the `tnt_explodes` game rule off, they only hurt. Guests in your LAN world see them without the mod.
 
 ## Build
 

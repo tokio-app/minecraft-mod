@@ -40,7 +40,7 @@ src/main/java/com/ialfaro/tokio/
   Tokio.java            the entrypoint (ModInitializer)
   connection/           the WebSocket to Tokio, no Minecraft classes:
                         TokioClient, Commands, CommandResult, ConnectionListener
-  game/                 the Minecraft side: running commands, /tokio, chat lines
+  game/                 the Minecraft side: running commands, /tokio, chat lines, the hazards
 src/main/resources/     fabric.mod.json, assets/tokio/icon.png
 src/test/java/          JUnit tests (connection/ against a fake Tokio)
 src/gametest/           server game tests and their fabric.mod.json (mod id tokio-test)
@@ -57,6 +57,11 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
 - **The world:**
   - The connection belongs to the world. Closing it disconnects.
   - `/tokio` is only for the singleplayer owner, so a LAN guest can't point the host's world at their own socket and run commands with the host's permission.
+- **Hazards** (`/tokio meteor [count]`, `/tokio laser`):
+  - Each is a `Hazard`, a block display that runs itself in `tick()` on the server. Clients get a plain block display, particles and sounds, all vanilla, so LAN guests without the mod see them. Don't add registry content (entities, blocks, particles): a vanilla client couldn't join.
+  - `shouldBeSaved()` is false, so a world closed or a chunk unloaded midway keeps no stray meteor or beam.
+  - Their blasts break blocks and start fires like TNT, or only hurt while `tnt_explodes` is off.
+  - They need gamemaster permission on top of being the host. Tokio's commands have it; a world without cheats can't use them as free TNT.
 - **Text for the player:**
   - Chat lines are short, plain sentences: "Connected to Tokio.", "Disconnected from Tokio. Another game connected to Tokio."
   - No prefixes like `[Tokio]`, no colors beyond the game's own for errors.
@@ -67,6 +72,7 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
 - **Server game tests** (`src/gametest`):
   - They run Tokio's command forms (`PROTOCOL.md` and Tokio's `gameCommands`) through the game's command dispatcher with mock players.
   - They need `eula = true` in `build.gradle`, which agrees to the Minecraft EULA. The user agreed to it for these tests.
+  - `HazardsTest` starts `Meteor.fall` and `Laser.fire` itself: game tests have no world host, so `/tokio` isn't reachable there. Its tests pad their area so the blasts can't reach other tests, and force-load the chunks a meteor starts in, since a test loads only its own.
 - **Against Tokio:** run Tokio's built app with **Minecraft** on (its `drive-app` skill) and `./gradlew runClient`. Open a world, type `/tokio connect`, and use **Test** on the Games page.
 
 ## Releasing
