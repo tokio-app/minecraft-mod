@@ -9,8 +9,10 @@ import net.minecraft.world.clock.WorldClock;
 
 /**
  * The night super lasers bring: the sky runs on to midnight when the first one
- * starts, and on to the hour it was when the last one ends. Used on the server
- * thread; one world at a time runs in the integrated server.
+ * starts, and on to the hour it was when the last one ends. Each holds it a
+ * tick at a time, so one that stops ticking, left behind out of the world's
+ * reach, lets the day come back. Used on the server thread; one world at a
+ * time runs in the integrated server.
  */
 public final class Night {
 	// The overworld's day, and its night (data/minecraft/timeline/day.json)
@@ -30,12 +32,20 @@ public final class Night {
 	private static long to;
 	private static int ran = RUN_TICKS;
 	private static boolean dawn;
+	// The server tick a super laser last held the night at, or -1
+	private static long heldAt = -1;
 
 	private Night() {
 	}
 
-	/** Runs the sky to midnight, unless it's night already. A dawn under way turns back. */
-	static void fall(ServerLevel level) {
+	/** Keeps it night for a super laser, this tick. The first hold brings it. */
+	public static void hold(ServerLevel level) {
+		if (heldAt < 0) fall(level);
+		heldAt = level.getServer().getTickCount();
+	}
+
+	// Runs the sky to midnight, unless it's night already. A dawn under way turns back.
+	private static void fall(ServerLevel level) {
 		Optional<Holder<WorldClock>> found = level.dimensionType().defaultClock();
 		// The Nether keeps no time
 		if (found.isEmpty()) return;
@@ -51,14 +61,19 @@ public final class Night {
 		run(now, next(now, MIDNIGHT), false);
 	}
 
-	/** Runs the sky on to the hour it was before night fell, if it fell. */
-	static void lift() {
+	// Runs the sky on to the hour it was before night fell, if it fell
+	private static void lift() {
 		if (clock == null || hour < 0) return;
 		long now = now();
 		run(now, next(now, hour), true);
 	}
 
+	/** After the super lasers' ticks: the day comes back once none held the night. */
 	public static void tick(MinecraftServer server) {
+		if (heldAt >= 0 && heldAt < server.getTickCount()) {
+			heldAt = -1;
+			lift();
+		}
 		if (ran >= RUN_TICKS || clocks == null) return;
 		ran++;
 		clocks.setTotalTicks(clock, from + (to - from) * ran / RUN_TICKS);
@@ -72,6 +87,7 @@ public final class Night {
 		clock = null;
 		hour = -1;
 		ran = RUN_TICKS;
+		heldAt = -1;
 	}
 
 	private static void run(long from, long to, boolean dawn) {

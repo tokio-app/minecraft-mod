@@ -72,7 +72,7 @@ public final class Laser extends Hazard {
 	private static final int FIRE = AIM_TICKS + LOCK_TICKS;
 	private static final DustParticleOptions RED = new DustParticleOptions(0xFF2020, 0.8F);
 	private static final ColorParticleOption FLASH = ColorParticleOption.create(ParticleTypes.FLASH, 1F, 1F, 1F);
-	// The super lasers under way, which keep it night
+	// The super lasers under way, whose lights go before the world saves
 	private static final Set<Laser> POWERFUL = new HashSet<>();
 
 	/** The name a laser's beams carry, so the mod draws them as beacon beams; others see the blocks. */
@@ -142,10 +142,7 @@ public final class Laser extends Hazard {
 		Laser laser = new Laser(player, kind);
 		player.level().addFreshEntity(laser);
 		laser.sound(SoundEvents.GUARDIAN_ATTACK, 2, kind.powerful() ? 0.6F : 0.8F);
-		if (kind.powerful()) {
-			POWERFUL.add(laser);
-			if (POWERFUL.size() == 1) Night.fall(player.level());
-		}
+		if (kind.powerful()) POWERFUL.add(laser);
 		return laser;
 	}
 
@@ -165,6 +162,7 @@ public final class Laser extends Hazard {
 	public void tick() {
 		super.tick();
 		age++;
+		if (kind.powerful()) Night.hold(serverLevel());
 		if (age < FIRE) aim();
 		if (age == AIM_TICKS) lockOn();
 		if (age >= AIM_TICKS && age < FIRE) charge();
@@ -206,7 +204,7 @@ public final class Laser extends Hazard {
 		}
 		lights.clear();
 		if (glow != null) glow.discard();
-		if (POWERFUL.remove(this) && POWERFUL.isEmpty()) Night.lift();
+		POWERFUL.remove(this);
 	}
 
 	// The red beam comes down, follows the player with a pulse that quickens as
