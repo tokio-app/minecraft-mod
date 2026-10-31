@@ -17,6 +17,9 @@
 	"entrypoints": {
 		"main": [
 			"com.ialfaro.tokio.Tokio"
+		],
+		"client": [
+			"com.ialfaro.tokio.client.Beams"
 		]
 	},
 	"depends": {

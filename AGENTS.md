@@ -40,7 +40,8 @@ src/main/java/com/ialfaro/tokio/
   Tokio.java            the entrypoint (ModInitializer)
   connection/           the WebSocket to Tokio, no Minecraft classes:
                         TokioClient, Commands, CommandResult, ConnectionListener
-  game/                 the Minecraft side: running commands, /tokio, chat lines
+  game/                 the Minecraft side: running commands, /tokio, chat lines, the hazards
+  client/               this client only: the lasers' beams drawn as beacon beams
 src/main/resources/     fabric.mod.json, assets/tokio/icon.png
 src/test/java/          JUnit tests (connection/ against a fake Tokio)
 src/gametest/           server game tests and their fabric.mod.json (mod id tokio-test)
@@ -57,6 +58,14 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
 - **The world:**
   - The connection belongs to the world. Closing it disconnects.
   - `/tokio` is only for the singleplayer owner, so a LAN guest can't point the host's world at their own socket and run commands with the host's permission.
+- **Hazards** (`/tokio meteor [count]`, `/tokio laser [super [duper]]`):
+  - Each is a `Hazard`, a block display that runs itself in `tick()` on the server. Clients get a plain block display, particles and sounds, all vanilla, so LAN guests without the mod see them. Don't add registry content (entities, blocks, particles): a vanilla client couldn't join.
+  - `shouldBeSaved()` is false, so a world closed or a chunk unloaded midway keeps no stray meteor or beam.
+  - They aim at the ground or water under the player (`Hazard.groundUnder`), so one sent while they fly still lands on the ground. On the ground, that's their feet.
+  - Clients with the mod draw a laser's beams, the block displays named `Laser.BEAM`, as beacon beams: `LaserRenderer` (the `client` entrypoint registers it) replaces the block display renderer and draws every other display as the game does. It also slides bright pulses down the beams and draws the thin aim beam wider. Glass plates for rings and an impact disc were tried and dropped: up close they read as floating panes.
+  - Their blasts break blocks and start fires like TNT, or only hurt while `tnt_explodes` is off.
+  - They need gamemaster permission on top of being the host. Tokio's commands have it; a world without cheats can't use them as free TNT.
+  - A super laser brings the night through `Night`, which runs the overworld's clock to midnight when the first one starts and on to the hour it was after the last one ends, on `END_SERVER_TICK`. Each super laser holds the night every tick it ticks (`Night.hold`), not by counting lasers in and out: one left behind outside the area the world simulates (the player respawned or flew far) stops ticking without ending, and a count kept it night for good, so later super lasers brought none. It lights the spot with light blocks up along the beam, never at the spot (they'd stop the blasts), and takes them away when it goes. It then bores a tunnel 64 blocks on along the beam, since blasts barely dent stone: it removes what breaks without drops, but what holds items drops it, and it stops at the world's bottom. A super duper laser first burns down along the beam through all the ground over the player (`cover`), so its timeline starts later. `SERVER_STOPPING` ends the super lasers and brings the day back before the world saves.
 - **Text for the player:**
   - Chat lines are short, plain sentences: "Connected to Tokio.", "Disconnected from Tokio. Another game connected to Tokio."
   - No prefixes like `[Tokio]`, no colors beyond the game's own for errors.
@@ -67,6 +76,8 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
 - **Server game tests** (`src/gametest`):
   - They run Tokio's command forms (`PROTOCOL.md` and Tokio's `gameCommands`) through the game's command dispatcher with mock players.
   - They need `eula = true` in `build.gradle`, which agrees to the Minecraft EULA. The user agreed to it for these tests.
+  - `HazardsTest` starts `Meteor.fall` and `Laser.fire` itself: game tests have no world host, so `/tokio` isn't reachable there. Its tests pad their area so the blasts can't reach other tests, and force-load the chunks a meteor starts in, since a test loads only its own. A test whose player is above its structure needs `skyAccess`: otherwise the barrier ceiling over the structure is the ground under them.
+  - The mod is client-only, so the game test server never runs `Tokio.onInitialize`: a test ticks what it registers itself, as the super laser test ticks `Night`. The super laser tests run in their own batch, `tokio-test:noon` (`src/gametest/resources/data/tokio-test/test_environment/`), which starts at noon, since other tests set the time. They share its one night. The test of `Night` alone runs in `tokio-test:noon_alone`, as any super laser beside it would hold the night.
 - **Against Tokio:** run Tokio's built app with **Minecraft** on (its `drive-app` skill) and `./gradlew runClient`. Open a world, type `/tokio connect`, and use **Test** on the Games page.
 
 ## Releasing

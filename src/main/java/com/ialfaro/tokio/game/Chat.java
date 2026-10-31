@@ -9,6 +9,9 @@ final class Chat {
 	static final String CONNECTED = "Connected to Tokio.";
 	static final String DISCONNECTED = "Disconnected from Tokio.";
 	static final String NOT_CONNECTED = "Not connected to Tokio. Turn on Minecraft in Tokio's Games page, then type /tokio connect.";
+	static final String LASER = "A laser is aiming at you.";
+	static final String SUPER_LASER = "A super laser is aiming at you.";
+	static final String SUPER_DUPER_LASER = "A super duper laser is aiming at you.";
 	private static final String TURN_ON = "Turn on Minecraft in Tokio's Games page.";
 
 	private Chat() {
@@ -16,6 +19,10 @@ final class Chat {
 
 	static String connecting(Address address) {
 		return "Connecting to Tokio at " + address + "…";
+	}
+
+	static String meteors(int count) {
+		return count == 1 ? "A meteor is falling." : count + " meteors are falling.";
 	}
 
 	static String connectedTo(Address address) {
