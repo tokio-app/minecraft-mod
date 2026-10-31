@@ -29,9 +29,14 @@ abstract class Hazard extends Display.BlockDisplay {
 		return (ServerLevel) level();
 	}
 
+	/** Whether the hazards may break blocks: like TNT, unless tnt_explodes is off. */
+	boolean breaks() {
+		return serverLevel().getGameRules().get(GameRules.TNT_EXPLODES);
+	}
+
 	/** Breaks blocks and starts fires like TNT, or only hurts while tnt_explodes is off. */
 	void blast(Vec3 at, float power) {
-		boolean breaks = serverLevel().getGameRules().get(GameRules.TNT_EXPLODES);
+		boolean breaks = breaks();
 		serverLevel().explode(null, at.x, at.y, at.z, power, breaks, breaks ? Level.ExplosionInteraction.TNT : Level.ExplosionInteraction.NONE);
 	}
 }

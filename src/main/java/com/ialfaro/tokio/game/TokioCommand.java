@@ -13,8 +13,9 @@ import net.minecraft.server.level.ServerPlayer;
  * {@code /tokio}, {@code /tokio connect [address]} and {@code /tokio disconnect}.
  * Only the singleplayer world's host can use them, cheats or not: a LAN guest
  * could otherwise point the host's world at their own socket.
- * {@code /tokio meteor [count]} and {@code /tokio laser} also need gamemaster
- * permission, which Tokio's commands have, as the hazards break blocks.
+ * {@code /tokio meteor [count]} and {@code /tokio laser [super [duper]]} also need
+ * gamemaster permission, which Tokio's commands have, as the hazards break
+ * blocks.
  */
 public final class TokioCommand {
 	private TokioCommand() {
@@ -36,7 +37,10 @@ public final class TokioCommand {
 								.executes(context -> meteor(context, IntegerArgumentType.getInteger(context, "count")))))
 				.then(Commands.literal("laser")
 						.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-						.executes(TokioCommand::laser)));
+						.executes(context -> laser(context, Laser.LASER, Chat.LASER))
+						.then(Commands.literal("super")
+								.executes(context -> laser(context, Laser.SUPER, Chat.SUPER_LASER))
+								.then(Commands.literal("duper").executes(context -> laser(context, Laser.SUPER_DUPER, Chat.SUPER_DUPER_LASER))))));
 	}
 
 	private static boolean isHost(CommandSourceStack source) {
@@ -81,9 +85,9 @@ public final class TokioCommand {
 		return count;
 	}
 
-	private static int laser(CommandContext<CommandSourceStack> context) {
-		Laser.fire(context.getSource().getPlayer());
-		context.getSource().sendSuccess(() -> Component.literal(Chat.LASER), false);
+	private static int laser(CommandContext<CommandSourceStack> context, Laser.Kind kind, String text) {
+		Laser.fire(context.getSource().getPlayer(), kind);
+		context.getSource().sendSuccess(() -> Component.literal(text), false);
 		return 1;
 	}
 }
