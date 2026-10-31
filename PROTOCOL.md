@@ -57,7 +57,7 @@ A `commandLine` that starts with `enableencryption` comes from a Tokio that does
 - They run with gamemaster permission (level 2, as command blocks), whatever the world's **Allow Commands**, so no cheats are needed.
 - Their feedback isn't shown in chat or sent to operators. It only goes back to Tokio.
 - A command that comes while the host isn't in the world fails with "The player isn't in the world yet.", and one that comes as the world closes with "The world is closing."
-- Besides the game's commands, Tokio's command steps can send the mod's own: `tokio meteor [count]` (1 to 100) and `tokio laser`. They need gamemaster permission, which Tokio's commands have. They answer at once ("A meteor is falling.", "A laser is aiming at you."), and the hazard plays out over the next few seconds.
+- Besides the game's commands, Tokio's command steps can send the mod's own: `tokio meteor [count]` (1 to 100) and `tokio laser [super [duper]]`. They need gamemaster permission, which Tokio's commands have. They answer at once ("A meteor is falling.", "A laser is aiming at you."), and the hazard plays out over the next few seconds.
 - `/time set` that fails because the clock is already at that time (26.3 refuses it, e.g. night set twice in one tick by an action on every gift) counts as run: the world is as Tokio asked. The mod tells that error by its translation key, so it works in any language.
 
 ## Limits

@@ -17,24 +17,26 @@ It works in single-player worlds, and in LAN worlds you host. Cheats aren't need
 
 Type it again each time you open the world.
 
-| Command                     | What it does                                          |
-| --------------------------- | ----------------------------------------------------- |
-| `/tokio`                    | Says whether the world is connected to Tokio          |
-| `/tokio connect [address]`  | Connects to Tokio, at `localhost:37892` by default    |
-| `/tokio disconnect`         | Disconnects from Tokio                                |
-| `/tokio meteor [count]`     | Drops 1 to 100 meteors on you, 1 by default           |
-| `/tokio laser`              | Fires a laser at you from the sky                     |
+| Command                        | What it does                                                   |
+| ------------------------------ | -------------------------------------------------------------- |
+| `/tokio`                       | Says whether the world is connected to Tokio                   |
+| `/tokio connect [address]`     | Connects to Tokio, at `localhost:37892` by default             |
+| `/tokio disconnect`            | Disconnects from Tokio                                         |
+| `/tokio meteor [count]`        | Drops 1 to 100 meteors on you, 1 by default                    |
+| `/tokio laser [super [duper]]` | Fires a laser at you from the sky: plain, super or super duper |
 
 Only the world's host can use them. The meteor and the laser also need cheats on.
 
 ## Meteors and lasers
 
-Tokio can send them for you, cheats or not: on a Java action in the **Games** page, add a **Command** step with `tokio meteor 5` or `tokio laser`.
+Tokio can send them for you, cheats or not: on a Java action in the **Games** page, add a **Command** step with `tokio meteor 5`, `tokio laser`, `tokio laser super` or `tokio laser super duper`.
 
 - **Meteor:** a burning rock falls from high in the sky to where you stand, and you have 2 seconds to get out of the way. It leaves a crater with a lump of magma and blackstone in it. With a count, the rest land around you, one after another.
-- **Laser:** a red beam follows you for 2 seconds, then stops. A second later it fires and blasts a hole where it stands.
+- **Laser:** a red beam follows you for 2 seconds, then stops and blinks. A second later it fires and blasts a hole where it stands.
+- **Super laser:** night falls as it aims. Once it stops, the spot lights up and lightning strikes around you. Then it blasts a wide crater and bores a tunnel about 60 blocks down along the beam, through anything but bedrock. The day comes back when it's over.
+- **Super duper laser:** a super laser that first burns down through all the ground over you, so it gets you underground too.
 
-Their explosions break blocks and start fires, like TNT. With the `tnt_explodes` game rule off, they only hurt. Guests in your LAN world see them without the mod.
+Their explosions break blocks and start fires, like TNT. With the `tnt_explodes` game rule off, they only hurt. Guests in your LAN world see them without the mod, though only players with it see the lasers as glowing beams.
 
 ## Build
 
