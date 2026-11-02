@@ -31,7 +31,7 @@ Only the world's host can use them. The meteor, the laser and the morphs also ne
 
 ## Meteors and lasers
 
-Tokio can send them for you, cheats or not: on a Java action in the **Games** page, add a **Command** step with `tokio meteor 5`, `tokio laser`, `tokio laser super` or `tokio laser super duper`.
+Tokio can send them for you, cheats or not: on a Java action in the **Games** page, add a **Hazard** step and pick **Meteor**, **Laser**, **Super laser** or **Super duper laser**.
 
 - **Meteor:** a burning rock falls from high in the sky to the ground under you, flying or not, and you have 2 seconds to get out of the way. It leaves a crater with a lump of magma and blackstone in it. With a count, the rest land around you, one after another.
 - **Laser:** a red beam follows the ground under you for 2 seconds, then stops and blinks. A second later it fires and blasts a hole where it stands.
@@ -42,7 +42,7 @@ Their explosions break blocks and start fires, like TNT. With the `tnt_explodes`
 
 ## Turning into a mob
 
-Tokio can turn you into any living mob, bosses included, cheats or not. On a Java action in the **Games** page, add a **Command** step with `tokio morph iron_golem`, `tokio morph chicken 30` or `tokio unmorph`. Without seconds, you stay the mob until `tokio unmorph`, until you die or until you close the world.
+Tokio can turn you into any living mob, bosses included, cheats or not. On a Java action in the **Games** page, add a **Turn into mob** step, and a **Back to normal** step on another action to turn you back. Without seconds, you stay the mob until **Back to normal** (`/tokio unmorph`), until you die or until you close the world.
 
 - **Look and size:** you're the mob's exact size, with its eyes. In third person you see the mob; in first person your bare arms are hidden. Big mobs reach further and push the camera back.
 - **Stats:** its health, damage, armor, knockback resistance, jump, step height and fall damage. You keep the same share of your hearts: half your health as a player is half an iron golem's. You walk at the mob's own pace, from half to one and a half times your normal walk.
