@@ -35,5 +35,6 @@ public class Tokio implements ModInitializer {
 		ServerTickEvents.END_SERVER_TICK.register(Night::tick);
 		ServerTickEvents.END_SERVER_TICK.register(Morph::tick);
 		ServerPlayerEvents.AFTER_RESPAWN.register(Morph::respawned);
+		ServerPlayerEvents.JOIN.register(Morph::joined);
 	}
 }

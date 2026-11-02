@@ -75,7 +75,16 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
     - speed is the mob's walking push (speed² ÷ 0.98), kept between 0.05 and 0.15; `aquatic` mobs get half a walk, flyers the player's own;
     - reach and `camera_distance` grow by height ÷ 1.8;
     - health keeps its share, both ways.
-  - Flyers get `mayfly`; one that ends a morph in the air gets 10 seconds of Slow Falling. Chickens and fireproof mobs get hidden effects (no icon) that last 3 seconds and are renewed, so a crash can't leave one behind. Mobs that breathe underwater give `oxygen_bonus`. `Morph.tick` ports `Mob.isSunBurnTick` and `burnUndead`, the water sensitivity and `WaterAnimal.handleAirSupply` to the player, and plays the mob's idle sounds at its own rhythm.
+  - Flyers fly at once (`mayfly` and `flying`).
+    - Creative flight lands a client that's on the ground, so a jump's push goes to the client first.
+    - They fly at creative's speed. Ghasts, happy ghasts and blazes fly at half of it; phantoms, vexes and the dragon at one and a half.
+    - That speed is saved with the player, so `Morph.joined` puts back one a crash left.
+    - One that ends a morph in the air gets 10 seconds of Slow Falling.
+  - The dragon breaks what its body flies into, as `EnderDragon.checkWalls` does for the real one.
+    - It reaches one block around its body.
+    - It skips `#dragon_immune` and `#dragon_transparent`, and breaks nothing while `mobGriefing` is off.
+    - It leaves the ground under it unless it flies down; otherwise it would sink through the world.
+  - Chickens and fireproof mobs get hidden effects (no icon) that last 3 seconds and are renewed, so a crash can't leave one behind. Mobs that breathe underwater give `oxygen_bonus`. `Morph.tick` ports `Mob.isSunBurnTick` and `burnUndead`, the water sensitivity and `WaterAnimal.handleAirSupply` to the player, and plays the mob's idle sounds at its own rhythm.
   - The mixins work on both sides: the host's client and its integrated server share the JVM and the synced look.
     - `AvatarMixin` gives a morphed player the mob's dimensions. Players move on their own client, so the size must hold there too.
     - The game never nudges a growing player out of blocks, so `Morph` does: with the game's own search for room (`fudgePositionAfterSizeChange`) up to 4×4, where the game stops for mobs too. Past that, the search merges every block shape around and held the world for minutes on a dragon beside terrain, so a bigger mob rises until it fits, at most its own height.
@@ -85,8 +94,8 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
     - `EntityInvoker` and `LivingEntityInvoker` reach the mob's protected sound methods.
   - `MorphLooks` (a `client` entrypoint) draws them. On Fabric's `LevelExtractionEvents.END_EXTRACTION`, it swaps each morphed player's `AvatarRenderState` for one extracted from a client-only copy of the mob.
     - The copy stands where the player does, holds their items, and takes their animation from the avatar state.
-    - It's never ticked, so some mobs keep an idle pose: chickens' wings, the Warden, Sniffer, Camel, Armadillo, Breeze and Creaking.
-    - An exception while extracting crashes the game, so a kind that throws is logged once and drawn as a player from then on.
+    - Its own tick runs each client tick, once it's moved to the player. So its wings flap, the dragon growls and turns by the flight history it records, and the Warden's heart beats.
+    - An exception while extracting crashes the game, so a kind that throws is logged once and drawn as a player from then on. A kind whose tick throws is logged once and kept still.
     - Don't hook `EntityRenderDispatcher.extractEntity` itself: the local player's own state must stay an `AvatarRenderState`.
   - A morph ends on `/tokio unmorph`, when its seconds are up, on death or leaving the End (`AFTER_RESPAWN`), and on `SERVER_STOPPING`, before the world saves.
 - **Text for the player:**

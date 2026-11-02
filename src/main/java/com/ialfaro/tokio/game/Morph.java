@@ -14,12 +14,15 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.effect.MobEffect;
@@ -40,9 +43,14 @@ import net.minecraft.world.entity.ai.attributes.DefaultAttributes;
 import net.minecraft.world.entity.animal.fish.WaterAnimal;
 import net.minecraft.world.entity.monster.cubemob.AbstractCubeMob;
 import net.minecraft.world.entity.monster.cubemob.SulfurCube;
+import net.minecraft.world.entity.player.Abilities;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.LevelEvent;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Turns players into mobs: the mob's size and look (through {@link #LOOK},
@@ -70,6 +78,16 @@ public final class Morph {
 	private static final Set<EntityType<?>> FLYERS = Set.of(EntityTypes.ALLAY, EntityTypes.BAT, EntityTypes.BEE, EntityTypes.BLAZE,
 			EntityTypes.ENDER_DRAGON, EntityTypes.GHAST, EntityTypes.HAPPY_GHAST, EntityTypes.PARROT, EntityTypes.PHANTOM, EntityTypes.VEX,
 			EntityTypes.WITHER);
+	// Creative flight's speed; these fly at half of it, and these at one and a half
+	private static final float FLYING_SPEED = 0.05F;
+	private static final float SLOW_FLYING_SPEED = FLYING_SPEED * 0.5F;
+	private static final float FAST_FLYING_SPEED = FLYING_SPEED * 1.5F;
+	private static final Set<EntityType<?>> SLOW_FLYERS = Set.of(EntityTypes.GHAST, EntityTypes.HAPPY_GHAST, EntityTypes.BLAZE);
+	private static final Set<EntityType<?>> FAST_FLYERS = Set.of(EntityTypes.PHANTOM, EntityTypes.VEX, EntityTypes.ENDER_DRAGON);
+	// A jump's push: creative flight lands a player who's on the ground, so a flyer takes off
+	private static final double TAKE_OFF = 0.42;
+	// How far around its body the dragon breaks what it flies into
+	private static final double SMASH_REACH = 1;
 	// The game rolls their health between 15 and 30 when they spawn; unspawned, they carry a placeholder
 	private static final Set<EntityType<?>> ROLLED_HEALTH = Set.of(EntityTypes.HORSE, EntityTypes.DONKEY, EntityTypes.MULE, EntityTypes.LLAMA,
 			EntityTypes.TRADER_LLAMA);
@@ -104,6 +122,8 @@ public final class Morph {
 		final long endsAt;
 		int ambientTime;
 		int air;
+		// Where the player was last tick, to tell a dragon flying down
+		double lastY;
 
 		Morphed(EntityType<?> type, long endsAt, int air) {
 			this.type = type;
@@ -166,16 +186,38 @@ public final class Morph {
 		}
 		setStats(player, mob);
 		renewEffects(player, type);
-		if (flies) {
-			player.getAbilities().mayfly = true;
-			player.onUpdateAbilities();
-		}
+		if (flies) fly(player, type);
 		player.setAttached(LOOK, type);
 		resize(player, before);
 		player.setHealth(share * player.getMaxHealth());
 		long endsAt = seconds.isPresent() ? player.level().getServer().getTickCount() + seconds.getAsInt() * 20L : -1;
-		MORPHED.put(player, new Morphed(type, endsAt, old != null ? old.air : player.getAirSupply()));
+		Morphed morphed = new Morphed(type, endsAt, old != null ? old.air : player.getAirSupply());
+		morphed.lastY = player.getY();
+		MORPHED.put(player, morphed);
 		return true;
+	}
+
+	// Airborne at once, at the mob's speed
+	private static void fly(ServerPlayer player, EntityType<?> type) {
+		Abilities abilities = player.getAbilities();
+		abilities.mayfly = true;
+		abilities.setFlyingSpeed(SLOW_FLYERS.contains(type) ? SLOW_FLYING_SPEED : FAST_FLYERS.contains(type) ? FAST_FLYING_SPEED : FLYING_SPEED);
+		// The push goes first: a client that flies on the ground lands at once
+		if (!abilities.flying && player.onGround()) {
+			Vec3 movement = player.getDeltaMovement();
+			player.setDeltaMovement(movement.x, TAKE_OFF, movement.z);
+			if (player.connection != null) player.connection.send(new ClientboundSetEntityMotionPacket(player));
+		}
+		abilities.flying = true;
+		player.onUpdateAbilities();
+	}
+
+	/** A morph's flying speed is saved with the player: one a crash left behind goes back to creative's. */
+	public static void joined(ServerPlayer player) {
+		float speed = player.getAbilities().getFlyingSpeed();
+		if (speed != SLOW_FLYING_SPEED && speed != FAST_FLYING_SPEED) return;
+		player.getAbilities().setFlyingSpeed(FLYING_SPEED);
+		player.onUpdateAbilities();
 	}
 
 	/** Turns the player back, if they're a mob. */
@@ -219,6 +261,7 @@ public final class Morph {
 		Mob mob = instance(level, morphed.type);
 		if (mob == null) return;
 		renewEffects(player, morphed.type);
+		if (morphed.type == EntityTypes.ENDER_DRAGON) smash(player, morphed);
 		if (holds(morphed.type, EntityTypeTags.BURN_IN_DAYLIGHT) && isSunBurnTick(player)) burnUndead(player);
 		if (mob.isSensitiveToWater() && player.isInWaterOrRain()) player.hurtServer(level, player.damageSources().drown(), 1);
 		if (mob instanceof WaterAnimal) handleAirSupply(player, morphed);
@@ -313,10 +356,11 @@ public final class Morph {
 		}
 	}
 
-	// Back to the game mode's flight; one in the air floats down
+	// Back to the game mode's flight, at creative's speed; one in the air floats down
 	private static void land(ServerPlayer player) {
 		boolean flying = player.getAbilities().flying;
 		player.gameMode().updatePlayerAbilities(player.getAbilities());
+		player.getAbilities().setFlyingSpeed(FLYING_SPEED);
 		player.onUpdateAbilities();
 		if (flying && !player.getAbilities().flying) player.addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, SLOW_FALL_AFTER_FLIGHT));
 	}
@@ -343,6 +387,32 @@ public final class Morph {
 	private static void place(ServerPlayer player, double y) {
 		if (player.connection != null) player.teleportTo(player.getX(), y, player.getZ());
 		else player.setPos(player.getX(), y, player.getZ());
+	}
+
+	// EnderDragon.checkWalls, around the player's body: what the dragon flies into breaks, as
+	// the real one's does, but not what it can't break, nothing while mobGriefing is off, and
+	// not the ground under it unless it flies down, or it would sink through the world
+	private static void smash(ServerPlayer player, Morphed morphed) {
+		boolean down = player.getAbilities().flying && player.getY() < morphed.lastY;
+		morphed.lastY = player.getY();
+		ServerLevel level = player.level();
+		if (!level.getGameRules().get(GameRules.MOB_GRIEFING)) return;
+		AABB reach = player.getBoundingBox().inflate(SMASH_REACH);
+		int x0 = Mth.floor(reach.minX);
+		// The block its feet are in, even on a slab, but not the one they stand on
+		int y0 = down ? Mth.floor(reach.minY) : Mth.floor(player.getY() + 0.5);
+		int z0 = Mth.floor(reach.minZ);
+		int x1 = Mth.floor(reach.maxX);
+		int y1 = Mth.floor(reach.maxY);
+		int z1 = Mth.floor(reach.maxZ);
+		boolean broke = false;
+		for (BlockPos pos : BlockPos.betweenClosed(x0, y0, z0, x1, y1, z1)) {
+			BlockState state = level.getBlockState(pos);
+			if (state.isAir() || state.is(BlockTags.DRAGON_TRANSPARENT) || state.is(BlockTags.DRAGON_IMMUNE)) continue;
+			broke = level.removeBlock(pos, false) || broke;
+		}
+		RandomSource random = player.getRandom();
+		if (broke) level.levelEvent(LevelEvent.PARTICLES_DRAGON_BLOCK_BREAK, new BlockPos(x0 + random.nextInt(x1 - x0 + 1), y0 + random.nextInt(y1 - y0 + 1), z0 + random.nextInt(z1 - z0 + 1)), 0);
 	}
 
 	// Mob.isSunBurnTick, for the player

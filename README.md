@@ -46,7 +46,8 @@ Tokio can turn you into any living mob, bosses included, cheats or not. On a Jav
 
 - **Look and size:** you're the mob's exact size, with its eyes. In third person you see the mob; in first person your bare arms are hidden. Big mobs reach further and push the camera back.
 - **Stats:** its health, damage, armor, knockback resistance, jump, step height and fall damage. You keep the same share of your hearts: half your health as a player is half an iron golem's. You walk at the mob's own pace, from half to one and a half times your normal walk.
-- **Traits:** flying mobs fly and chickens fall slowly. Water mobs breathe underwater, and fish drown on land. Fireproof mobs don't burn, zombies and skeletons catch fire in the sun, endermen and blazes get hurt by water, and spiders climb walls.
+- **Traits:** flying mobs take off at once and fly like creative flight. Ghasts, happy ghasts and blazes fly slower, and phantoms, vexes and the Ender Dragon faster. Chickens fall slowly. Water mobs breathe underwater, and fish drown on land. Fireproof mobs don't burn, zombies and skeletons catch fire in the sun, endermen and blazes get hurt by water, and spiders climb walls.
+- **The Ender Dragon** smashes through what it flies into, like the real one, unless the `mobGriefing` game rule is off.
 - **Sounds:** its hurt, death, step and idle sounds replace yours.
 
 Guests in your LAN world need the mod to see the mob. Without it, they see you as a player.

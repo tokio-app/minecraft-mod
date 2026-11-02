@@ -2,6 +2,7 @@ package com.ialfaro.tokio.test;
 
 import com.ialfaro.tokio.game.Morph;
 import com.ialfaro.tokio.mixin.LivingEntityInvoker;
+import java.util.List;
 import java.util.OptionalInt;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -134,15 +135,34 @@ public class MorphTest {
 	@GameTest
 	public void flyersFlyAndChickensFallSlowly(GameTestHelper helper) {
 		MockPlayer player = new MockPlayer(helper);
+		player.setOnGround(true);
 		Morph.start(player, EntityTypes.BAT, OptionalInt.empty());
 		helper.assertTrue(player.getAbilities().mayfly, "A bat can't fly");
+		// Airborne at once: off the ground, as creative flight would land it
+		helper.assertTrue(player.getAbilities().flying, "A bat isn't flying");
+		helper.assertTrue(player.getDeltaMovement().y > 0, "A bat on the ground didn't take off");
+		near(helper, player.getAbilities().getFlyingSpeed(), 0.05, "a bat's flying speed");
+		Morph.start(player, EntityTypes.GHAST, OptionalInt.empty());
+		helper.assertTrue(player.getAbilities().flying, "A bat turned ghast stopped flying");
+		near(helper, player.getAbilities().getFlyingSpeed(), 0.025, "a ghast's flying speed");
+		Morph.start(player, EntityTypes.PHANTOM, OptionalInt.empty());
+		near(helper, player.getAbilities().getFlyingSpeed(), 0.075, "a phantom's flying speed");
 		Morph.end(player);
 		helper.assertFalse(player.getAbilities().mayfly, "The player still flies");
-		Morph.start(player, EntityTypes.CHICKEN, OptionalInt.empty());
-		MobEffectInstance slowFalling = player.getEffect(MobEffects.SLOW_FALLING);
+		helper.assertFalse(player.getAbilities().flying, "The player is still flying");
+		near(helper, player.getAbilities().getFlyingSpeed(), 0.05, "the flying speed after");
+		// A crash can leave a morph's flying speed in the player's save
+		player.getAbilities().setFlyingSpeed(0.075F);
+		Morph.joined(player);
+		near(helper, player.getAbilities().getFlyingSpeed(), 0.05, "the flying speed a crash left");
+		// The phantom ended in the air, so this player floats down for a while
+		helper.assertTrue(player.getEffect(MobEffects.SLOW_FALLING) != null, "The phantom's player falls fast");
+		MockPlayer hen = new MockPlayer(helper);
+		Morph.start(hen, EntityTypes.CHICKEN, OptionalInt.empty());
+		MobEffectInstance slowFalling = hen.getEffect(MobEffects.SLOW_FALLING);
 		helper.assertTrue(slowFalling != null && !slowFalling.showIcon(), "A chicken has no hidden Slow Falling");
-		Morph.end(player);
-		helper.assertTrue(player.getEffect(MobEffects.SLOW_FALLING) == null, "The Slow Falling is still there");
+		Morph.end(hen);
+		helper.assertTrue(hen.getEffect(MobEffects.SLOW_FALLING) == null, "The Slow Falling is still there");
 		helper.succeed();
 	}
 
@@ -234,6 +254,29 @@ public class MorphTest {
 		near(helper, player.getMaxHealth(), 200, "the dragon's max health");
 		Morph.end(player);
 		helper.succeed();
+	}
+
+	// Like the real dragon: what its body flies into breaks, but not obsidian, and not the ground under it
+	@GameTest(padding = 16, skyAccess = true)
+	public void dragonSmashesWhatItFliesInto(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		Morph.start(player, EntityTypes.ENDER_DRAGON, OptionalInt.empty());
+		BlockPos feet = BlockPos.containing(player.position());
+		// Just past its body, 8 blocks from its middle: at its feet, at its head, and obsidian
+		BlockPos side = feet.offset(9, 0, 0);
+		BlockPos head = feet.offset(9, 7, 0);
+		BlockPos immune = feet.offset(0, 0, 9);
+		BlockPos ground = feet.below();
+		for (BlockPos pos : List.of(side, head, ground)) helper.getLevel().setBlockAndUpdate(pos, Blocks.STONE.defaultBlockState());
+		helper.getLevel().setBlockAndUpdate(immune, Blocks.OBSIDIAN.defaultBlockState());
+		helper.onEachTick(() -> Morph.tick(helper.getLevel().getServer()));
+		helper.succeedWhen(() -> {
+			helper.assertTrue(helper.getLevel().getBlockState(side).isAir(), "The stone at its feet is still there");
+			helper.assertTrue(helper.getLevel().getBlockState(head).isAir(), "The stone at its head is still there");
+			helper.assertTrue(helper.getLevel().getBlockState(immune).is(Blocks.OBSIDIAN), "The dragon broke obsidian");
+			helper.assertTrue(helper.getLevel().getBlockState(ground).is(Blocks.STONE), "The dragon broke the ground under it");
+			Morph.end(player);
+		});
 	}
 
 	private static void speed(GameTestHelper helper, MockPlayer player, EntityType<?> type, double expected) {
