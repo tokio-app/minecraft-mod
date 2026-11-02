@@ -45,6 +45,8 @@ public final class MorphLooks implements ClientModInitializer {
 	private static final Map<Integer, EntityType<?>> DRAWN = new HashMap<>();
 	// Kinds that failed to draw, logged once and drawn as players from then on
 	private static final Set<EntityType<?>> FAILED = new HashSet<>();
+	// Kinds whose tick failed, logged once and kept still from then on
+	private static final Set<EntityType<?>> STILL = new HashSet<>();
 	private static ClientLevel lastLevel;
 
 	@Override
@@ -56,6 +58,13 @@ public final class MorphLooks implements ClientModInitializer {
 	/** The mob this player was last drawn as, or null. For the client game test. */
 	public static EntityType<?> drawnAs(Entity player) {
 		return DRAWN.get(player.getId());
+	}
+
+	/** The kinds that failed to draw or to animate. For the client game test. */
+	public static Set<EntityType<?>> failed() {
+		Set<EntityType<?>> failed = new HashSet<>(FAILED);
+		failed.addAll(STILL);
+		return failed;
 	}
 
 	private static void tick(Minecraft minecraft) {
@@ -76,10 +85,27 @@ public final class MorphLooks implements ClientModInitializer {
 				SIZED.put(player.getId(), look);
 			}
 			if (look == null) DRAWN.remove(player.getId());
-			// The dragon turns by its flight history, which its own tick records
-			if (look != null && COPIES.get(player.getId()) instanceof EnderDragon dragon) dragon.flightHistory.record(player.getY(), player.getYRot() + 180);
+			if (look != null && COPIES.get(player.getId()) instanceof Mob mob && mob.getType() == look) tickCopy(player, mob);
 		}
 		COPIES.keySet().removeIf(id -> !(level.getEntity(id) instanceof Player player) || Morph.look(player) == null);
+	}
+
+	// The mob's own animation runs in its tick: wings flap, the dragon growls, the Warden's heart beats
+	private static void tickCopy(Player player, Mob mob) {
+		if (STILL.contains(mob.getType())) return;
+		mob.setPos(player.position());
+		// The dragon turns by the flight history its tick records, which faces away from its yaw
+		mob.setYRot(mob instanceof EnderDragon ? player.getYRot() + 180 : player.getYRot());
+		mob.setXRot(player.getXRot());
+		// Its wings beat by how it moves
+		mob.setDeltaMovement(player.getDeltaMovement());
+		mob.setOnGround(player.onGround());
+		try {
+			mob.tick();
+		} catch (RuntimeException e) {
+			STILL.add(mob.getType());
+			Tokio.LOGGER.error("Couldn't animate a player as {}; they keep its still pose", mob.getType(), e);
+		}
 	}
 
 	private static void swap(LevelExtractionContext context) {
@@ -136,7 +162,7 @@ public final class MorphLooks implements ClientModInitializer {
 		return mob;
 	}
 
-	// The player's animation, which the never-ticked mob can't have
+	// How the player walks, swings, crouches and gets hurt, which the mob doesn't do by itself
 	private static void animate(AvatarRenderState avatar, EntityRenderState state) {
 		state.ageInTicks = avatar.ageInTicks;
 		state.outlineColor = avatar.outlineColor;

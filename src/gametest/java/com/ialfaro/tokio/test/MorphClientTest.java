@@ -50,9 +50,13 @@ public class MorphClientTest implements FabricClientGameTest {
 			host(server, "item replace entity @s armor.head with minecraft:iron_helmet");
 			shoot(context, server, "zombie");
 			shoot(context, server, "ghast");
+			shoot(context, server, "bat");
 			shoot(context, server, "slime");
 			shoot(context, server, "warden");
 			shoot(context, server, "ender_dragon");
+			// Its wings beat: another moment of the flap
+			context.waitTicks(7);
+			context.takeScreenshot("morph-ender_dragon-flapping");
 			camera(context, CameraType.THIRD_PERSON_BACK, true);
 			context.waitTicks(5);
 			context.takeScreenshot("morph-ender_dragon-back");
@@ -74,7 +78,12 @@ public class MorphClientTest implements FabricClientGameTest {
 
 			camera(context, CameraType.THIRD_PERSON_FRONT, true);
 			List<EntityType<?>> mobs = BuiltInRegistries.ENTITY_TYPE.stream().filter(Morph::canBecome).toList();
-			for (EntityType<?> type : mobs) morph(context, server, BuiltInRegistries.ENTITY_TYPE.getKey(type).getPath());
+			for (EntityType<?> type : mobs) {
+				morph(context, server, BuiltInRegistries.ENTITY_TYPE.getKey(type).getPath());
+				// A tick or two of its own animation
+				context.waitTicks(2);
+			}
+			if (!MorphLooks.failed().isEmpty()) throw new AssertionError("Couldn't draw or animate " + MorphLooks.failed());
 			expect(tokio(server, "tokio unmorph"), "Turned back.");
 			context.waitFor(minecraft -> Morph.look(minecraft.player) == null);
 			context.waitTicks(10);
