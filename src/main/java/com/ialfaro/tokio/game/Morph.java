@@ -86,6 +86,8 @@ public final class Morph {
 	private static final int SLOW_FALL_AFTER_FLIGHT = 200;
 	// A water animal out of water drowns once its air reaches this
 	private static final int DROWNED = -20;
+	// The biggest size the game searches room for when a mob grows (Entity.refreshDimensions)
+	private static final float ROOM_SEARCH_MAX = 4;
 
 	private static final Map<ServerPlayer, Morphed> MORPHED = new HashMap<>();
 	// One mob of each kind per side, made but never added to the world
@@ -319,12 +321,28 @@ public final class Morph {
 		if (flying && !player.getAbilities().flying) player.addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, SLOW_FALL_AFTER_FLIGHT));
 	}
 
-	// The game never nudges a player who grows out of a gap, so this does, and tells their client
+	// The game never nudges a player who grows out of a gap, so this does, and tells their client.
+	// Its search for room takes minutes past 4×4 by terrain (it stops there for mobs), so a
+	// bigger mob rises until it fits instead, at most its own height.
 	private static void resize(ServerPlayer player, EntityDimensions before) {
 		player.refreshDimensions();
 		EntityDimensions after = player.getDimensions(player.getPose());
 		if (after.width() <= before.width() && after.height() <= before.height()) return;
-		if (player.fudgePositionAfterSizeChange(before) && player.connection != null) player.teleportTo(player.getX(), player.getY(), player.getZ());
+		if (after.width() <= ROOM_SEARCH_MAX && after.height() <= ROOM_SEARCH_MAX) {
+			if (player.fudgePositionAfterSizeChange(before)) place(player, player.getY());
+			return;
+		}
+		for (int up = 0; up <= after.height(); up++) {
+			if (!player.level().noCollision(player, player.getBoundingBox().move(0, up, 0))) continue;
+			if (up > 0) place(player, player.getY() + up);
+			return;
+		}
+	}
+
+	// Puts the player at that height, on their client too
+	private static void place(ServerPlayer player, double y) {
+		if (player.connection != null) player.teleportTo(player.getX(), y, player.getZ());
+		else player.setPos(player.getX(), y, player.getZ());
 	}
 
 	// Mob.isSunBurnTick, for the player

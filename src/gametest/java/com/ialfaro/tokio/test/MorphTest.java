@@ -4,6 +4,7 @@ import com.ialfaro.tokio.game.Morph;
 import com.ialfaro.tokio.mixin.LivingEntityInvoker;
 import java.util.OptionalInt;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -214,6 +215,23 @@ public class MorphTest {
 		helper.assertTrue(player.onClimbable(), "A spider doesn't climb the wall it walks into");
 		player.horizontalCollision = false;
 		helper.assertFalse(player.onClimbable(), "A spider climbs without a wall");
+		Morph.end(player);
+		helper.succeed();
+	}
+
+	// Past 4×4 the game's search for room took minutes by real terrain and held the
+	// world; the dragon rises over what's in its way instead
+	@GameTest(padding = 16, skyAccess = true)
+	public void bigMobsRiseUntilTheyFit(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		BlockPos feet = BlockPos.containing(player.position());
+		// A wall 3 blocks high, inside the dragon's 16 blocks but clear of a player
+		BlockPos.betweenClosed(feet.offset(3, 0, -2), feet.offset(3, 2, 2)).forEach(pos -> helper.getLevel().setBlockAndUpdate(pos, Blocks.STONE.defaultBlockState()));
+		double y = player.getY();
+		helper.assertTrue(Morph.start(player, EntityTypes.ENDER_DRAGON, OptionalInt.empty()), "Couldn't turn into the Ender Dragon");
+		helper.assertTrue(helper.getLevel().noCollision(player), "The dragon is stuck in the wall");
+		helper.assertTrue(player.getY() >= y + 3, "The dragon didn't rise over the wall: " + (player.getY() - y));
+		near(helper, player.getMaxHealth(), 200, "the dragon's max health");
 		Morph.end(player);
 		helper.succeed();
 	}

@@ -77,7 +77,8 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
     - health keeps its share, both ways.
   - Flyers get `mayfly`; one that ends a morph in the air gets 10 seconds of Slow Falling. Chickens and fireproof mobs get hidden effects (no icon) that last 3 seconds and are renewed, so a crash can't leave one behind. Mobs that breathe underwater give `oxygen_bonus`. `Morph.tick` ports `Mob.isSunBurnTick` and `burnUndead`, the water sensitivity and `WaterAnimal.handleAirSupply` to the player, and plays the mob's idle sounds at its own rhythm.
   - The mixins work on both sides: the host's client and its integrated server share the JVM and the synced look.
-    - `AvatarMixin` gives a morphed player the mob's dimensions. Players move on their own client, so the size must hold there too. The game never nudges a growing player out of blocks, so `Morph` does.
+    - `AvatarMixin` gives a morphed player the mob's dimensions. Players move on their own client, so the size must hold there too.
+    - The game never nudges a growing player out of blocks, so `Morph` does: with the game's own search for room (`fudgePositionAfterSizeChange`) up to 4×4, where the game stops for mobs too. Past that, the search merges every block shape around and held the world for minutes on a dragon beside terrain, so a bigger mob rises until it fits, at most its own height.
     - `LivingEntityMixin` lets spiders climb.
     - `PlayerMixin` swaps the hurt, death and step sounds. The steps are played by the server's mob, for everyone, the player included.
     - `client/FirstPersonHandsAndItemsRendererMixin` hides the bare arm; held items still show.
