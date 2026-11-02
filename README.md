@@ -29,6 +29,14 @@ Type it again each time you open the world.
 
 Only the world's host can use them. The meteor, the laser and the morphs also need cheats on.
 
+## Mobs Tokio spawns
+
+Mobs that Tokio's actions summon don't burn in daylight, so zombies and skeletons stay around in the day. Fire and lava still burn them.
+
+Hostile ones come after you as soon as they appear, endermen, zombified piglins and piglins included, and they don't give up: a spider keeps at it in daylight too. Animals and mobs that are only neutral, like wolves, bees and iron golems, are left alone.
+
+The mod tags each of them `tokio`, so the tag stays with them after you close the world, and a command can find them with `@e[tag=tokio]`.
+
 ## Meteors and lasers
 
 Tokio can send them for you, cheats or not: on a Java action in the **Games** page, add a **Hazard** step and pick **Meteor**, **Laser**, **Super laser** or **Super duper laser**.

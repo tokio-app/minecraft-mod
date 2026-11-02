@@ -11,7 +11,7 @@ A Fabric mod for Minecraft: Java Edition **26.3** that connects the world the pl
 
 Repository `tokio-app/minecraft-mod`. Players download the jar from its GitHub releases. MIT.
 
-Stack: Java 25, Gradle 9.8.2 (wrapper), Fabric Loom 1.19 (`net.fabricmc.fabric-loom`), Fabric Loader 0.20.1, Fabric API 0.165.0+26.3. 26.x ships unobfuscated, so there are no mappings: the code uses Mojang's own names. The WebSocket client is the JDK's `java.net.http`, and JSON is the game's Gson, so the mod has no dependency of its own. The morphs' mixins (`tokio.mixins.json`) need no refmap, for the same reason.
+Stack: Java 25, Gradle 9.8.2 (wrapper), Fabric Loom 1.19 (`net.fabricmc.fabric-loom`), Fabric Loader 0.20.1, Fabric API 0.165.0+26.3. 26.x ships unobfuscated, so there are no mappings: the code uses Mojang's own names. The WebSocket client is the JDK's `java.net.http`, and JSON is the game's Gson, so the mod has no dependency of its own. The mixins (`tokio.mixins.json`) need no refmap, for the same reason.
 
 ## Commands
 
@@ -43,7 +43,7 @@ src/main/java/com/ialfaro/tokio/
                         TokioClient, Commands, CommandResult, ConnectionListener
   game/                 the Minecraft side: running commands, /tokio, chat lines, the hazards, the morphs
   client/               this client only: the lasers' beams drawn as beacon beams, morphed players drawn as their mob
-  mixin/                the morphs' patches to the player (client/ for the first-person arm)
+  mixin/                the morphs' patches to the player (client/ for the first-person arm), and to the mobs Tokio spawns
 src/main/resources/     fabric.mod.json, tokio.mixins.json, assets/tokio/icon.png
 src/test/java/          JUnit tests (connection/ against a fake Tokio)
 src/gametest/           server and client game tests and their fabric.mod.json (mod id tokio-test)
@@ -98,6 +98,17 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
     - An exception while extracting crashes the game, so a kind that throws is logged once and drawn as a player from then on. A kind whose tick throws is logged once and kept still.
     - Don't hook `EntityRenderDispatcher.extractEntity` itself: the local player's own state must stay an `AvatarRenderState`.
   - A morph ends on `/tokio unmorph`, when its seconds are up, on death or leaving the End (`AFTER_RESPAWN`), and on `SERVER_STOPPING`, before the world saves.
+- **Mobs Tokio spawns** (`game/Spawned.java`):
+  - `CommandRunner` runs each command inside `Spawned.during`. `ServerLevelMixin` tells it of every entity `ServerLevel.addEntity` takes meanwhile, passengers included. Entities loaded with their chunk don't go through it, so they're never Tokio's. Fabric's `ENTITY_LOAD` fires for those too, and the game test server loads the mixins but never runs `Tokio.onInitialize`.
+  - After the command, each entity still in the world gets the scoreboard tag `tokio` (`Spawned.TAG`), saved with it, so it still holds after the world reopens.
+  - `MobMixin` cancels `Mob.burnUndead` for tagged mobs, so they never burn in daylight and their helmets aren't worn down. Not fire resistance: fire and lava still burn them.
+  - Hostile means the game's `Enemy` marker: every `Monster` (endermen, zombified piglins, piglins and the Warden included), slimes, magma cubes, ghasts, phantoms, hoglins, shulkers and the dragon. They target the host (`setTarget`).
+    - `NeutralMob` monsters (endermen, zombified piglins) also get the host as their anger target, and the timer, or their AI drops the target.
+    - Brain-driven ones (piglins, brutes, hoglins, zoglins, the Breeze, the Creaking) get the `ATTACK_TARGET` and `ANGRY_AT` memories; a brain without a memory skips it. `ANGRY_AT` has no expiry, so piglins stay on the host in gold.
+    - The Warden gets anger at the host as a hit gives (`increaseAngerAt`), then `setAttackTarget`.
+    - `SpiderAttackGoalMixin` keeps tagged spiders attacking in daylight, where the game drops the target about 1 tick in 100.
+    - The dragon's phases ignore its target, so it flies as it would.
+  - Wolves, bees, iron golems, llamas, polar bears, goats and other neutral mobs aren't `Enemy`, so they're left alone.
 - **Text for the player:**
   - Chat lines are short, plain sentences: "Connected to Tokio.", "Disconnected from Tokio. Another game connected to Tokio."
   - No prefixes like `[Tokio]`, no colors beyond the game's own for errors.
@@ -114,8 +125,9 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
     - The test mod loads `tokio.mixins.json` itself (`"environment": "server"`).
   - The super laser tests run in their own batch, `tokio-test:noon` (`src/gametest/resources/data/tokio-test/test_environment/`), which starts at noon, since other tests set the time. They share its one night.
   - The test of `Night` alone runs in `tokio-test:noon_alone`, as any super laser beside it would hold the night. The first batch can start after its noon has run on, so that test compares the day with the hour it started at.
-  - The morph sun test runs in `tokio-test:noon_morph`, out of the super lasers' night.
-  - `MockPlayer` has no connection, so it skips what a server player sends through one: its effects and the invulnerability check.
+  - The sun tests run in `tokio-test:noon_morph`, out of the super lasers' night: the morph's, and `SpawnedTest`'s zombie that doesn't burn and spider that keeps attacking. The zombie test checks Tokio's zombie each tick for 200 ticks, beside one the test spawns that must catch fire, and clears the weather first.
+  - `SpawnedTest` runs Tokio's summons through `CommandRunner` and checks the tag and each family's target; `CommandRunnerTest` has the chicken jockey's two forms.
+  - `MockPlayer` has no connection, so it skips what a server player sends through one: its effects, the invulnerability check, combat and damage notices, and death. Tokio's hostile mobs attack it in every test that summons one, and it never dies.
 - **Client game tests** (`src/gametest`, the `fabric-client-gametest` entrypoint), `./gradlew runClientGameTest`:
   - `MorphClientTest` turns the host of a real singleplayer world into mobs through `CommandRunner` and takes screenshots, in third person and first person. They land in `build/run/clientGameTest/screenshots/`; look at them after a change to how morphs are drawn.
   - It also checks that every kind of mob is drawn as itself (`MorphLooks.drawnAs`).
