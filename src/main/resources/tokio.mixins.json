@@ -9,6 +9,9 @@
 		"LivingEntityMixin",
 		"PlayerMixin"
 	],
+	"client": [
+		"client.FirstPersonHandsAndItemsRendererMixin"
+	],
 	"injectors": {
 		"defaultRequire": 1
 	}

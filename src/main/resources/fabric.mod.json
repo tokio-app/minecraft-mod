@@ -19,7 +19,8 @@
 			"com.ialfaro.tokio.Tokio"
 		],
 		"client": [
-			"com.ialfaro.tokio.client.Beams"
+			"com.ialfaro.tokio.client.Beams",
+			"com.ialfaro.tokio.client.MorphLooks"
 		]
 	},
 	"mixins": [
