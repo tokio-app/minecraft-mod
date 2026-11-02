@@ -8,9 +8,19 @@
 	"entrypoints": {
 		"fabric-gametest": [
 			"com.ialfaro.tokio.test.CommandRunnerTest",
-			"com.ialfaro.tokio.test.HazardsTest"
+			"com.ialfaro.tokio.test.HazardsTest",
+			"com.ialfaro.tokio.test.MorphTest"
+		],
+		"fabric-client-gametest": [
+			"com.ialfaro.tokio.test.MorphClientTest"
 		]
 	},
+	"mixins": [
+		{
+			"config": "tokio.mixins.json",
+			"environment": "server"
+		}
+	],
 	"depends": {
 		"fabric-gametest-api-v1": "*"
 	}
