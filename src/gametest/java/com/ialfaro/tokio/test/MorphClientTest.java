@@ -1,6 +1,7 @@
 package com.ialfaro.tokio.test;
 
 import com.ialfaro.tokio.client.MorphLooks;
+import com.ialfaro.tokio.connection.CommandResult;
 import com.ialfaro.tokio.game.CommandRunner;
 import com.ialfaro.tokio.game.Morph;
 import java.util.List;
@@ -74,7 +75,7 @@ public class MorphClientTest implements FabricClientGameTest {
 			camera(context, CameraType.THIRD_PERSON_FRONT, true);
 			List<EntityType<?>> mobs = BuiltInRegistries.ENTITY_TYPE.stream().filter(Morph::canBecome).toList();
 			for (EntityType<?> type : mobs) morph(context, server, BuiltInRegistries.ENTITY_TYPE.getKey(type).getPath());
-			tokio(server, "tokio unmorph");
+			expect(tokio(server, "tokio unmorph"), "Turned back.");
 			context.waitFor(minecraft -> Morph.look(minecraft.player) == null);
 			context.waitTicks(10);
 			context.takeScreenshot("morph-turned-back");
@@ -99,17 +100,22 @@ public class MorphClientTest implements FabricClientGameTest {
 		context.takeScreenshot("morph-" + mob);
 	}
 
-	// Through the command, as Tokio sends it; it fails the test when the mob is never drawn
+	// Through the command, as Tokio sends it; it fails the test on another answer, or when the mob is never drawn
 	private static void morph(ClientGameTestContext context, TestServerContext server, String mob) {
-		tokio(server, "tokio morph minecraft:" + mob);
 		EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace(mob));
+		expect(tokio(server, "tokio morph minecraft:" + mob), "Turned into " + type.getDescription().getString() + ".");
 		context.waitFor(minecraft -> Morph.look(minecraft.player) == type, 100);
 		context.waitFor(minecraft -> MorphLooks.drawnAs(minecraft.player) == type, 100);
 	}
 
 	// As Tokio runs it, as the host: /execute can't reach /tokio, which only the host sees
-	private static void tokio(TestServerContext server, String command) {
-		server.runOnServer(minecraft -> new CommandRunner(minecraft).run(command));
+	private static CommandResult tokio(TestServerContext server, String command) {
+		return server.computeOnServer(minecraft -> new CommandRunner(minecraft).run(command)).join();
+	}
+
+	// What Tokio gets back
+	private static void expect(CommandResult answer, String text) {
+		if (!answer.ok() || !answer.message().equals(text)) throw new AssertionError("Tokio got " + answer + ", not \"" + text + "\"");
 	}
 
 	private static void host(TestServerContext server, String command) {
