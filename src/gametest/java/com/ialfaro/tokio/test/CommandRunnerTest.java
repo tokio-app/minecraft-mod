@@ -2,11 +2,13 @@ package com.ialfaro.tokio.test;
 
 import com.ialfaro.tokio.connection.CommandResult;
 import com.ialfaro.tokio.game.CommandRunner;
+import com.ialfaro.tokio.game.Spawned;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.clock.ClockTimeMarkers;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.animal.chicken.Chicken;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.item.Items;
 
@@ -31,6 +33,37 @@ public class CommandRunnerTest {
 		helper.assertTrue(zombie.position().distanceTo(player.position()) < 0.01, "The zombie isn't at the player");
 		player.assertNoChat(helper);
 		helper.succeed();
+	}
+
+	@GameTest
+	public void summonsAChickenJockey(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		ok(helper, player, "summon minecraft:chicken ~ ~ ~ {Passengers:[{id:\"minecraft:zombie\",IsBaby:1b}]}");
+		Zombie rider = jockey(helper, player);
+		helper.assertTrue(rider.getCustomName() == null, "The rider has a name");
+		player.assertNoChat(helper);
+		helper.succeed();
+	}
+
+	@GameTest
+	public void summonsANamedChickenJockey(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		ok(helper, player, "summon minecraft:chicken ~ ~ ~ {Passengers:[{id:\"minecraft:zombie\",IsBaby:1b,CustomName:\"Lucia\"}]}");
+		Zombie rider = jockey(helper, player);
+		helper.assertValueEqual(rider.getCustomName() == null ? null : rider.getCustomName().getString(), "Lucia", "the rider's name");
+		player.assertNoChat(helper);
+		helper.succeed();
+	}
+
+	// A chicken carrying a baby zombie, which is Tokio's and after the player
+	private static Zombie jockey(GameTestHelper helper, MockPlayer player) {
+		Chicken chicken = helper.findOneEntity(EntityTypes.CHICKEN);
+		helper.assertTrue(chicken.getFirstPassenger() instanceof Zombie, "The chicken carries no zombie");
+		Zombie rider = (Zombie) chicken.getFirstPassenger();
+		helper.assertTrue(rider.isBaby(), "The rider isn't a baby");
+		helper.assertTrue(Spawned.is(rider), "The rider isn't tagged");
+		helper.assertTrue(rider.getTarget() == player, "The rider isn't after the player");
+		return rider;
 	}
 
 	@GameTest
