@@ -1,5 +1,6 @@
 package com.ialfaro.tokio.game;
 
+import java.util.OptionalInt;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -12,9 +13,20 @@ final class Chat {
 	static final String LASER = "A laser is aiming at you.";
 	static final String SUPER_LASER = "A super laser is aiming at you.";
 	static final String SUPER_DUPER_LASER = "A super duper laser is aiming at you.";
+	static final String TURNED_BACK = "Turned back.";
 	private static final String TURN_ON = "Turn on Minecraft in Tokio's Games page.";
 
 	private Chat() {
+	}
+
+	static String turnedInto(Component mob, OptionalInt seconds) {
+		if (seconds.isEmpty()) return "Turned into " + mob.getString() + ".";
+		int count = seconds.getAsInt();
+		return "Turned into " + mob.getString() + " for " + count + (count == 1 ? " second." : " seconds.");
+	}
+
+	static String notAMob(Component type) {
+		return type.getString() + " isn't a mob.";
 	}
 
 	static String connecting(Address address) {
