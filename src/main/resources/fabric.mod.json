@@ -19,9 +19,13 @@
 			"com.ialfaro.tokio.Tokio"
 		],
 		"client": [
-			"com.ialfaro.tokio.client.Beams"
+			"com.ialfaro.tokio.client.Beams",
+			"com.ialfaro.tokio.client.MorphLooks"
 		]
 	},
+	"mixins": [
+		"tokio.mixins.json"
+	],
 	"depends": {
 		"fabricloader": ">=0.20.1",
 		"minecraft": "~26.3",

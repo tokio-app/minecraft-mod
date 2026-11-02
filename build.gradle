@@ -15,7 +15,7 @@ fabricApi {
 		createSourceSet = true
 		modId = "tokio-test"
 		enableGameTests = true
-		enableClientGameTests = false
+		enableClientGameTests = true
 		// By setting this to true, you agree to the Minecraft EULA
 		// (https://aka.ms/MinecraftEULA). The user agreed to it for the game tests.
 		eula = true

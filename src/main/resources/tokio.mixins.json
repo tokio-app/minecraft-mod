@@ -1,0 +1,18 @@
+{
+	"required": true,
+	"package": "com.ialfaro.tokio.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"AvatarMixin",
+		"EntityInvoker",
+		"LivingEntityInvoker",
+		"LivingEntityMixin",
+		"PlayerMixin"
+	],
+	"client": [
+		"client.FirstPersonHandsAndItemsRendererMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

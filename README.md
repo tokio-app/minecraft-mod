@@ -24,8 +24,10 @@ Type it again each time you open the world.
 | `/tokio disconnect`            | Disconnects from Tokio                                         |
 | `/tokio meteor [count]`        | Drops 1 to 100 meteors on you, 1 by default                    |
 | `/tokio laser [super [duper]]` | Fires a laser at you from the sky: plain, super or super duper |
+| `/tokio morph <mob> [seconds]` | Turns you into a mob, until you turn back or for the seconds   |
+| `/tokio unmorph`               | Turns you back                                                 |
 
-Only the world's host can use them. The meteor and the laser also need cheats on.
+Only the world's host can use them. The meteor, the laser and the morphs also need cheats on.
 
 ## Meteors and lasers
 
@@ -37,6 +39,18 @@ Tokio can send them for you, cheats or not: on a Java action in the **Games** pa
 - **Super duper laser:** a super laser that first burns down through all the ground over you, so it gets you underground too.
 
 Their explosions break blocks and start fires, like TNT. With the `tnt_explodes` game rule off, they only hurt. Guests in your LAN world see them without the mod, though only players with it see the lasers as glowing beams.
+
+## Turning into a mob
+
+Tokio can turn you into any living mob, bosses included, cheats or not. On a Java action in the **Games** page, add a **Command** step with `tokio morph iron_golem`, `tokio morph chicken 30` or `tokio unmorph`. Without seconds, you stay the mob until `tokio unmorph`, until you die or until you close the world.
+
+- **Look and size:** you're the mob's exact size, with its eyes. In third person you see the mob; in first person your bare arms are hidden. Big mobs reach further and push the camera back.
+- **Stats:** its health, damage, armor, knockback resistance, jump, step height and fall damage. You keep the same share of your hearts: half your health as a player is half an iron golem's. You walk at the mob's own pace, from half to one and a half times your normal walk.
+- **Traits:** flying mobs take off at once and fly like creative flight. Ghasts, happy ghasts and blazes fly slower, and phantoms, vexes and the Ender Dragon faster. Chickens fall slowly. Water mobs breathe underwater, and fish drown on land. Fireproof mobs don't burn, zombies and skeletons catch fire in the sun, endermen and blazes get hurt by water, and spiders climb walls.
+- **The Ender Dragon** smashes through what it flies into, like the real one, unless the `mobGriefing` game rule is off.
+- **Sounds:** its hurt, death, step and idle sounds replace yours.
+
+Guests in your LAN world need the mod to see the mob. Without it, they see you as a player.
 
 ## Build
 

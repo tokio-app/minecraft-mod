@@ -95,7 +95,11 @@ public class HazardsTest {
 		ServerLevel level = helper.getLevel();
 		Holder<WorldClock> clock = level.dimensionType().defaultClock().orElseThrow();
 		LongSupplier hour = () -> level.getServer().clockManager().getInstance(clock).totalTicks() % 24000;
+		// The hour night falls from: the batch's noon, unless the clock ran on
+		// before the test started, as it can in the first batch
+		long[] start = new long[1];
 		helper.startSequence()
+			.thenExecute(() -> start[0] = hour.getAsLong())
 			// A super laser holding it, every tick
 			.thenExecuteFor(40, () -> {
 				Night.hold(level);
@@ -104,7 +108,7 @@ public class HazardsTest {
 			.thenExecute(() -> helper.assertTrue(hour.getAsLong() >= 13000 && hour.getAsLong() < 23000, "Night didn't fall: " + hour.getAsLong()))
 			// Then none, as when it's left behind and stops ticking without ending
 			.thenExecuteFor(40, () -> Night.tick(level.getServer()))
-			.thenExecute(() -> helper.assertTrue(hour.getAsLong() >= 5000 && hour.getAsLong() < 7000, "The day isn't back: " + hour.getAsLong()))
+			.thenExecute(() -> helper.assertTrue(Math.abs(hour.getAsLong() - start[0]) < 1000, "The day isn't back: " + hour.getAsLong() + ", not about " + start[0]))
 			.thenSucceed();
 	}
 
