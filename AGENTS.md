@@ -11,7 +11,7 @@ A Fabric mod for Minecraft: Java Edition **26.3** that connects the world the pl
 
 Repository `tokio-app/minecraft-mod`. Players download the jar from its GitHub releases. MIT.
 
-Stack: Java 25, Gradle 9.8.2 (wrapper), Fabric Loom 1.19 (`net.fabricmc.fabric-loom`), Fabric Loader 0.20.1, Fabric API 0.165.0+26.3. 26.x ships unobfuscated, so there are no mappings: the code uses Mojang's own names. The WebSocket client is the JDK's `java.net.http`, and JSON is the game's Gson, so the mod has no dependency of its own.
+Stack: Java 25, Gradle 9.8.2 (wrapper), Fabric Loom 1.19 (`net.fabricmc.fabric-loom`), Fabric Loader 0.20.1, Fabric API 0.165.0+26.3. 26.x ships unobfuscated, so there are no mappings: the code uses Mojang's own names. The WebSocket client is the JDK's `java.net.http`, and JSON is the game's Gson, so the mod has no dependency of its own. The morphs' mixins (`tokio.mixins.json`) need no refmap, for the same reason.
 
 ## Commands
 
@@ -22,6 +22,7 @@ export JAVA_HOME="/c/Program Files/Microsoft/jdk-25.0.4.101-hotspot"
 ./gradlew build        # compile, unit tests, server game tests; the jar in build/libs/
 ./gradlew test         # unit tests only
 ./gradlew runGameTest  # server game tests only
+./gradlew runClientGameTest  # client game tests, in a game window; build doesn't run them
 ./gradlew runClient    # the dev client with the mod, as the offline player "Player"
 ./gradlew genSources   # decompile Minecraft, to read its classes (Mojang's names)
 ```
@@ -40,11 +41,12 @@ src/main/java/com/ialfaro/tokio/
   Tokio.java            the entrypoint (ModInitializer)
   connection/           the WebSocket to Tokio, no Minecraft classes:
                         TokioClient, Commands, CommandResult, ConnectionListener
-  game/                 the Minecraft side: running commands, /tokio, chat lines, the hazards
-  client/               this client only: the lasers' beams drawn as beacon beams
-src/main/resources/     fabric.mod.json, assets/tokio/icon.png
+  game/                 the Minecraft side: running commands, /tokio, chat lines, the hazards, the morphs
+  client/               this client only: the lasers' beams drawn as beacon beams, morphed players drawn as their mob
+  mixin/                the morphs' patches to the player (client/ for the first-person arm)
+src/main/resources/     fabric.mod.json, tokio.mixins.json, assets/tokio/icon.png
 src/test/java/          JUnit tests (connection/ against a fake Tokio)
-src/gametest/           server game tests and their fabric.mod.json (mod id tokio-test)
+src/gametest/           server and client game tests and their fabric.mod.json (mod id tokio-test)
 scripts/release-notes.sh  a release's notes, from the Conventional Commits since the last tag
 .github/workflows/release.yml  builds, tests and publishes the jar for a v<version> tag
 ```
@@ -66,6 +68,26 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
   - Their blasts break blocks and start fires like TNT, or only hurt while `tnt_explodes` is off.
   - They need gamemaster permission on top of being the host. Tokio's commands have it; a world without cheats can't use them as free TNT.
   - A super laser brings the night through `Night`, which runs the overworld's clock to midnight when the first one starts and on to the hour it was after the last one ends, on `END_SERVER_TICK`. Each super laser holds the night every tick it ticks (`Night.hold`), not by counting lasers in and out: one left behind outside the area the world simulates (the player respawned or flew far) stops ticking without ending, and a count kept it night for good, so later super lasers brought none. It lights the spot with light blocks up along the beam, never at the spot (they'd stop the blasts), and takes them away when it goes. It then bores a tunnel 64 blocks on along the beam, since blasts barely dent stone: it removes what breaks without drops, but what holds items drops it, and it stops at the world's bottom. A super duper laser first burns down along the beam through all the ground over the player (`cover`), so its timeline starts later. `SERVER_STOPPING` ends the super lasers and brings the day back before the world saves.
+- **Morphs** (`/tokio morph <mob> [seconds]`, `/tokio unmorph`, `game/Morph.java`):
+  - The look is a Fabric data attachment, `Morph.LOOK` (`tokio:morph`, the mob's `EntityType`), synced to every client with the mod and never saved. `Tokio.onInitialize` touches it first: a client reports the synced attachments it knows as it joins, before anything else loads `Morph`. Vanilla clients report none, so LAN guests without the mod still join, and see a player.
+  - The stats come from a mob of that kind that's made but never added to the world (`Morph.instance`, one per kind per side). Slimes and magma cubes are size 4, sulfur cubes 2, and the horses whose health the game rolls at spawn get 22. They're transient modifiers with the id `tokio:morph`, so nothing is saved:
+    - the mob's value replaces the player's, for each stat the mob has;
+    - speed is the mob's walking push (speed² ÷ 0.98), kept between 0.05 and 0.15; `aquatic` mobs get half a walk, flyers the player's own;
+    - reach and `camera_distance` grow by height ÷ 1.8;
+    - health keeps its share, both ways.
+  - Flyers get `mayfly`; one that ends a morph in the air gets 10 seconds of Slow Falling. Chickens and fireproof mobs get hidden effects (no icon) that last 3 seconds and are renewed, so a crash can't leave one behind. Mobs that breathe underwater give `oxygen_bonus`. `Morph.tick` ports `Mob.isSunBurnTick` and `burnUndead`, the water sensitivity and `WaterAnimal.handleAirSupply` to the player, and plays the mob's idle sounds at its own rhythm.
+  - The mixins work on both sides: the host's client and its integrated server share the JVM and the synced look.
+    - `AvatarMixin` gives a morphed player the mob's dimensions. Players move on their own client, so the size must hold there too. The game never nudges a growing player out of blocks, so `Morph` does.
+    - `LivingEntityMixin` lets spiders climb.
+    - `PlayerMixin` swaps the hurt, death and step sounds. The steps are played by the server's mob, for everyone, the player included.
+    - `client/FirstPersonHandsAndItemsRendererMixin` hides the bare arm; held items still show.
+    - `EntityInvoker` and `LivingEntityInvoker` reach the mob's protected sound methods.
+  - `MorphLooks` (a `client` entrypoint) draws them. On Fabric's `LevelExtractionEvents.END_EXTRACTION`, it swaps each morphed player's `AvatarRenderState` for one extracted from a client-only copy of the mob.
+    - The copy stands where the player does, holds their items, and takes their animation from the avatar state.
+    - It's never ticked, so some mobs keep an idle pose: chickens' wings, the Warden, Sniffer, Camel, Armadillo, Breeze and Creaking.
+    - An exception while extracting crashes the game, so a kind that throws is logged once and drawn as a player from then on.
+    - Don't hook `EntityRenderDispatcher.extractEntity` itself: the local player's own state must stay an `AvatarRenderState`.
+  - A morph ends on `/tokio unmorph`, when its seconds are up, on death or leaving the End (`AFTER_RESPAWN`), and on `SERVER_STOPPING`, before the world saves.
 - **Text for the player:**
   - Chat lines are short, plain sentences: "Connected to Tokio.", "Disconnected from Tokio. Another game connected to Tokio."
   - No prefixes like `[Tokio]`, no colors beyond the game's own for errors.
@@ -77,7 +99,17 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
   - They run Tokio's command forms (`PROTOCOL.md` and Tokio's `gameCommands`) through the game's command dispatcher with mock players.
   - They need `eula = true` in `build.gradle`, which agrees to the Minecraft EULA. The user agreed to it for these tests.
   - `HazardsTest` starts `Meteor.fall` and `Laser.fire` itself: game tests have no world host, so `/tokio` isn't reachable there. Its tests pad their area so the blasts can't reach other tests, and force-load the chunks a meteor starts in, since a test loads only its own. A test whose player is above its structure needs `skyAccess`: otherwise the barrier ceiling over the structure is the ground under them.
-  - The mod is client-only, so the game test server never runs `Tokio.onInitialize`: a test ticks what it registers itself, as the super laser test ticks `Night`. The super laser tests run in their own batch, `tokio-test:noon` (`src/gametest/resources/data/tokio-test/test_environment/`), which starts at noon, since other tests set the time. They share its one night. The test of `Night` alone runs in `tokio-test:noon_alone`, as any super laser beside it would hold the night.
+  - The mod is client-only, so the game test server never runs `Tokio.onInitialize` or loads its mixins.
+    - A test ticks what it registers itself, as the super laser test ticks `Night` and `MorphTest` ticks `Morph`.
+    - The test mod loads `tokio.mixins.json` itself (`"environment": "server"`).
+  - The super laser tests run in their own batch, `tokio-test:noon` (`src/gametest/resources/data/tokio-test/test_environment/`), which starts at noon, since other tests set the time. They share its one night.
+  - The test of `Night` alone runs in `tokio-test:noon_alone`, as any super laser beside it would hold the night. The first batch can start after its noon has run on, so that test compares the day with the hour it started at.
+  - The morph sun test runs in `tokio-test:noon_morph`, out of the super lasers' night.
+  - `MockPlayer` has no connection, so it skips what a server player sends through one: its effects and the invulnerability check.
+- **Client game tests** (`src/gametest`, the `fabric-client-gametest` entrypoint), `./gradlew runClientGameTest`:
+  - `MorphClientTest` turns the host of a real singleplayer world into mobs through `CommandRunner` and takes screenshots, in third person and first person. They land in `build/run/clientGameTest/screenshots/`; look at them after a change to how morphs are drawn.
+  - It also checks that every kind of mob is drawn as itself (`MorphLooks.drawnAs`).
+  - It opens a game window, so `build` and the Release workflow don't run it.
 - **Against Tokio:** run Tokio's built app with **Minecraft** on (its `drive-app` skill) and `./gradlew runClient`. Open a world, type `/tokio connect`, and use **Test** on the Games page.
 
 ## Releasing

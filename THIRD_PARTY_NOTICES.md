@@ -4,8 +4,8 @@ The mod is MIT ([`LICENSE`](LICENSE)). Its jar holds only this project's code, r
 
 | What | License | How it's used |
 | ---- | ------- | ------------- |
-| [Fabric Loader](https://github.com/FabricMC/fabric-loader) | Apache-2.0 | Runs the mod. Players install it. |
-| [Fabric API](https://github.com/FabricMC/fabric) | Apache-2.0 | Commands, server events and game tests. Players install it. |
+| [Fabric Loader](https://github.com/FabricMC/fabric-loader) | Apache-2.0 | Runs the mod and applies its mixins. Players install it. |
+| [Fabric API](https://github.com/FabricMC/fabric) | Apache-2.0 | Commands, server and client events, synced player data and game tests. Players install it. |
 | [Gradle wrapper](https://github.com/gradle/gradle) (`gradlew`, `gradlew.bat`, `gradle/wrapper/`) | Apache-2.0 | Builds the mod. Not in the jar. |
 | [Fabric example mod](https://github.com/FabricMC/fabric-example-mod), branch `26.3` | CC0-1.0 | The build files started from it. |
 | [JUnit](https://github.com/junit-team/junit-framework), [Fabric Loader JUnit](https://github.com/FabricMC/fabric-loader) | EPL-2.0, Apache-2.0 | Tests only. |
