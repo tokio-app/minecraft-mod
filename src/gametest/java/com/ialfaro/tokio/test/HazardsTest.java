@@ -99,7 +99,12 @@ public class HazardsTest {
 		// before the test started, as it can in the first batch
 		long[] start = new long[1];
 		helper.startSequence()
-			.thenExecute(() -> start[0] = hour.getAsLong())
+			// Night's state is static: a super laser test can end mid-dawn and
+			// leave the hour it was bringing back
+			.thenExecute(() -> {
+				Night.stop(level.getServer());
+				start[0] = hour.getAsLong();
+			})
 			// A super laser holding it, every tick
 			.thenExecuteFor(40, () -> {
 				Night.hold(level);
