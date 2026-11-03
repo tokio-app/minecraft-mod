@@ -9,10 +9,12 @@
 		"fabric-gametest": [
 			"com.ialfaro.tokio.test.CommandRunnerTest",
 			"com.ialfaro.tokio.test.HazardsTest",
+			"com.ialfaro.tokio.test.HostOnlyTest",
 			"com.ialfaro.tokio.test.MorphTest",
 			"com.ialfaro.tokio.test.SpawnedTest"
 		],
 		"fabric-client-gametest": [
+			"com.ialfaro.tokio.test.HostOnlyClientTest",
 			"com.ialfaro.tokio.test.MorphClientTest"
 		]
 	},

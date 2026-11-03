@@ -43,7 +43,8 @@ src/main/java/com/ialfaro/tokio/
                         TokioClient, Commands, CommandResult, ConnectionListener
   game/                 the Minecraft side: running commands, /tokio, chat lines, the hazards, the morphs
   client/               this client only: the lasers' beams drawn as beacon beams, morphed players drawn as their mob
-  mixin/                the morphs' patches to the player (client/ for the first-person arm), and to the mobs Tokio spawns
+  mixin/                the morphs' patches to the player (client/ for the first-person arm), to the mobs Tokio spawns,
+                        and the host-only rule's: blasts, lightning, evoker fangs and projectiles
 src/main/resources/     fabric.mod.json, tokio.mixins.json, assets/tokio/icon.png
 src/test/java/          JUnit tests (connection/ against a fake Tokio)
 src/gametest/           server and client game tests and their fabric.mod.json (mod id tokio-test)
@@ -60,14 +61,25 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
 - **The world:**
   - The connection belongs to the world. Closing it disconnects.
   - `/tokio` is only for the singleplayer owner, so a LAN guest can't point the host's world at their own socket and run commands with the host's permission.
+- **Only the host** (`game/Host.java`, the user's call): what Tokio's commands make, and the hazards, reach the world's host alone. Another player in a LAN world isn't targeted, hurt or pushed by them, and never gets the hazards. What they leave in the shared world is everyone's: broken blocks, fire, lava, traps, anvils, the mobs themselves.
+  - `Host.isOther(entity)`: a player other than the singleplayer owner. False in a world without an owner, as in game tests, so nothing changes there.
+  - `Host.tokios(entity)`: tagged (`Spawned`), or its owner is (`TraceableEntity`): an arrow a Tokio skeleton shot, fangs a Tokio evoker cast, a Tokio ghast's fireball. An explosion is Tokio's when its direct or indirect source is, or it's one of the mod's own (`Host.blast`, around `Hazard.blast`).
+  - `ServerExplosionMixin` skips other players in Tokio's blasts (`ignoreExplosion`): no damage, no push. `ServerLevelMixin` sends the mod's own blasts' particles, sound and push to the host alone.
+  - `LightningBoltMixin` (`thunderHit`), `EvokerFangsMixin` (`dealDamageTo`) and `ProjectileMixin` (`canHitEntity`, which every projectile's own override calls) spare other players from Tokio's.
+  - Targets: see Mobs Tokio spawns.
 - **Hazards** (`/tokio meteor [count]`, `/tokio laser [super [duper]]`):
-  - Each is a `Hazard`, a block display that runs itself in `tick()` on the server. Clients get a plain block display, particles and sounds, all vanilla, so LAN guests without the mod see them. Don't add registry content (entities, blocks, particles): a vanilla client couldn't join.
+  - Each is a `Hazard`, a block display that runs itself in `tick()` on the server, aimed at its host. Only the host's client gets it (`broadcastToPlayer`), and its particles and sounds go to the host alone (`Hazard.particles`, `Hazard.sound`). It's all vanilla still: don't add registry content (entities, blocks, particles), or a vanilla client couldn't join.
+  - Its particles follow the host's Particles setting (`Host.particlesShown`, from the client information the server keeps): all, about two in three on Decreased as the game drops its own, none on Minimal. They're sent with `overrideLimiter`, so a meteor's trail shows from 512 blocks, and the client then draws every one it gets.
   - `shouldBeSaved()` is false, so a world closed or a chunk unloaded midway keeps no stray meteor or beam.
   - They aim at the ground or water under the player (`Hazard.groundUnder`), so one sent while they fly still lands on the ground. On the ground, that's their feet.
   - Clients with the mod draw a laser's beams, the block displays named `Laser.BEAM`, as beacon beams: `LaserRenderer` (the `client` entrypoint registers it) replaces the block display renderer and draws every other display as the game does. It also slides bright pulses down the beams and draws the thin aim beam wider. Glass plates for rings and an impact disc were tried and dropped: up close they read as floating panes.
-  - Their blasts break blocks and start fires like TNT, or only hurt while `tnt_explodes` is off.
+  - Their blasts break blocks and start fires like TNT, or only hurt while `tnt_explodes` is off. They hurt and push the host alone (Only the host).
   - They need gamemaster permission on top of being the host. Tokio's commands have it; a world without cheats can't use them as free TNT.
-  - A super laser brings the night through `Night`, which runs the overworld's clock to midnight when the first one starts and on to the hour it was after the last one ends, on `END_SERVER_TICK`. Each super laser holds the night every tick it ticks (`Night.hold`), not by counting lasers in and out: one left behind outside the area the world simulates (the player respawned or flew far) stops ticking without ending, and a count kept it night for good, so later super lasers brought none. It lights the spot with light blocks up along the beam, never at the spot (they'd stop the blasts), and takes them away when it goes. It then bores a tunnel 64 blocks on along the beam, since blasts barely dent stone: it removes what breaks without drops, but what holds items drops it, and it stops at the world's bottom. A super duper laser first burns down along the beam through all the ground over the player (`cover`), so its timeline starts later. `SERVER_STOPPING` ends the super lasers and brings the day back before the world saves.
+  - A super laser brings the night to its host's screen through `Night`, which never changes the world's clock: other players, mob spawning and the time the world saves keep the world's hour.
+    - It sends the host alone the overworld's clock, `Night.ahead()` ticks ahead (`ClientboundSetTimePacket`), and their client runs it on from there. It runs to midnight when the first super laser starts and on to the world's own hour after the last one ends, on `END_SERVER_TICK`: a whole day or so ahead, then the world's clock itself, so the days count the same.
+    - A respawn, a trip to another dimension or a clock someone changed sends the host the world's clock, so the night goes again every second while it holds.
+    - Each super laser holds the night every tick it ticks (`Night.hold`), not by counting lasers in and out: one left behind outside the area the world simulates (the player respawned or flew far) stops ticking without ending, and a count kept it night for good, so later super lasers brought none.
+  - A super laser lights the spot with light blocks up along the beam, never at the spot (they'd stop the blasts), and takes them away when it goes. It then bores a tunnel 64 blocks on along the beam, since blasts barely dent stone: it removes what breaks without drops, but what holds items drops it, and it stops at the world's bottom. A super duper laser first burns down along the beam through all the ground over the player (`cover`), so its timeline starts later. Its lightning is the host's alone too: a client draws a bolt's flash and plays its thunder itself. `SERVER_STOPPING` ends the super lasers before the world saves, so it keeps none of their light.
 - **Morphs** (`/tokio morph <mob> [seconds]`, `/tokio unmorph`, `game/Morph.java`):
   - The look is a Fabric data attachment, `Morph.LOOK` (`tokio:morph`, the mob's `EntityType`), synced to every client with the mod and never saved. `Tokio.onInitialize` touches it first: a client reports the synced attachments it knows as it joins, before anything else loads `Morph`. Vanilla clients report none, so LAN guests without the mod still join, and see a player.
   - The stats come from a mob of that kind that's made but never added to the world (`Morph.instance`, one per kind per side). Slimes and magma cubes are size 4, sulfur cubes 2, and the horses whose health the game rolls at spawn get 22. They're transient modifiers with the id `tokio:morph`, so nothing is saved:
@@ -109,6 +121,7 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
     - `SpiderAttackGoalMixin` keeps tagged spiders attacking in daylight, where the game drops the target about 1 tick in 100.
     - The dragon's phases ignore its target, so it flies as it would.
   - Wolves, bees, iron golems, llamas, polar bears, goats and other neutral mobs aren't `Enemy`, so they're left alone.
+  - No tagged mob ever goes after a player but the host. `MobMixin` makes `Mob.canAttack` false for other players, and every target goes through it: the goals' searches (`TargetingConditions`), the brains' sensors, and `setTarget` and `getTarget` (`asValidTarget`), brains' targets included. `WardenMixin` does the same for the Warden's anger (`canTargetEntity`), which picks its own.
 - **Text for the player:**
   - Chat lines are short, plain sentences: "Connected to Tokio.", "Disconnected from Tokio. Another game connected to Tokio."
   - No prefixes like `[Tokio]`, no colors beyond the game's own for errors.
@@ -128,10 +141,14 @@ scripts/release-notes.sh  a release's notes, from the Conventional Commits since
   - The sun tests run in `tokio-test:noon_morph`, out of the super lasers' night: the morph's, and `SpawnedTest`'s zombie that doesn't burn and spider that keeps attacking. The zombie test checks Tokio's zombie each tick for 200 ticks, beside one the test spawns that must catch fire, and clears the weather first.
   - `SpawnedTest` runs Tokio's summons through `CommandRunner` and checks the tag and each family's target; `CommandRunnerTest` has the chicken jockey's two forms, and the hazards Tokio builds from vanilla commands: the launch's clearing, the traps, the lava lake, the hole and the inventory clear. Each runs twice, so a second run over the first's blocks still succeeds.
   - `MockPlayer` has no connection, so it skips what a server player sends through one: its effects, the invulnerability check, combat and damage notices, and death. Tokio's hostile mobs attack it in every test that summons one, and it never dies. `/clear` updates the crafting grid through the connection, so its test uses the game's own `makeMockServerPlayerInLevel` and removes that player after.
+  - `HostOnlyTest` checks Only the host with a host and another player beside them. Game tests have no host, so each test makes one (`setSingleplayerProfile`) for the tick it runs in, checks it all within that tick and removes its players, so no other test sees them.
+    - Its players are in the world, as blasts, bolts and fangs find their victims there; mock players aren't. The game's `makeMockServerPlayerInLevel` is creative, so they're its own: survival, 200 health so a blast at their feet doesn't kill them, and no spawn invulnerability.
+    - It ticks the bolt, the fangs and a meteor itself, and sets TNT off with `explode`. Each check has a control the world made, which does reach the other player.
 - **Client game tests** (`src/gametest`, the `fabric-client-gametest` entrypoint), `./gradlew runClientGameTest`:
   - `MorphClientTest` turns the host of a real singleplayer world into mobs through `CommandRunner` and takes screenshots, in third person and first person. They land in `build/run/clientGameTest/screenshots/`; look at them after a change to how morphs are drawn.
   - It also checks that every kind of mob is drawn as itself (`MorphLooks.drawnAs`).
-  - It opens a game window, so `build` and the Release workflow don't run it.
+  - `HostOnlyClientTest` fires a super laser at the host: night on their client's clock while the world's stays at noon, then the world's own clock again. Then it checks a meteor shower's particles on Minimal and on All, set by saving the options, which tells the server as the options screen does. Its screenshot of the night lands beside the morphs'.
+  - They open a game window, so `build` and the Release workflow don't run them.
 - **Against Tokio:** run Tokio's built app with **Minecraft** on (its `drive-app` skill) and `./gradlew runClient`. Open a world, type `/tokio connect`, and use **Test** on the Games page.
 
 ## Releasing

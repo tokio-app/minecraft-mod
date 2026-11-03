@@ -13,11 +13,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.item.DyeColor;
@@ -32,10 +30,11 @@ import org.joml.Vector3f;
 /**
  * A laser from far above: a thin red beam comes down and follows the player,
  * holds still and blinks while it charges, then comes down white-hot and
- * blasts a hole where it stands. A super laser brings the night, lights the
- * spot up, calls lightning and bores a deep tunnel. A super duper laser first
- * burns down through the ground over the player, so it reaches them
- * underground.
+ * blasts a hole where it stands. A super laser brings the night to the
+ * player's screen, lights the spot up, calls lightning and bores a deep
+ * tunnel. A super duper laser first burns down through the ground over the
+ * player, so it reaches them underground. Only the player sees it, glow and
+ * lightning included.
  */
 public final class Laser extends Hazard {
 	// Following the player, then holding still: the time to run
@@ -92,7 +91,6 @@ public final class Laser extends Hazard {
 	public static final Kind SUPER = new Kind(5, 1, 0, 7, 6, 5, 64, true, false);
 	public static final Kind SUPER_DUPER = new Kind(5, 1, 0, 7, 6, 5, 64, true, true);
 
-	private final ServerPlayer player;
 	private final Kind kind;
 	private final Quaternionf tilt;
 	// Up along the beam
@@ -118,8 +116,7 @@ public final class Laser extends Hazard {
 	private Hazard glow;
 
 	private Laser(ServerPlayer player, Kind kind) {
-		super(player.level());
-		this.player = player;
+		super(player);
 		this.kind = kind;
 		this.target = groundUnder(player.level(), player.position());
 		this.top = Math.max(player.level().getMaxY(), target.y) + ABOVE_BUILD_LIMIT;
@@ -146,7 +143,7 @@ public final class Laser extends Hazard {
 		return laser;
 	}
 
-	/** Ends the super lasers before the world saves, so their lights go and the day comes back. */
+	/** Ends the super lasers before the world saves, so their lights go. */
 	public static void stopAll() {
 		List.copyOf(POWERFUL).forEach(Entity::discard);
 	}
@@ -162,7 +159,7 @@ public final class Laser extends Hazard {
 	public void tick() {
 		super.tick();
 		age++;
-		if (kind.powerful()) Night.hold(serverLevel());
+		if (kind.powerful()) Night.hold(host);
 		if (age < FIRE) aim();
 		if (age == AIM_TICKS) lockOn();
 		if (age >= AIM_TICKS && age < FIRE) charge();
@@ -228,8 +225,8 @@ public final class Laser extends Hazard {
 
 	// Onto the ground under the player, until they leave the world or its dimension
 	private void follow() {
-		if (player.isRemoved() || player.level() != level()) return;
-		target = groundUnder(serverLevel(), player.position());
+		if (host.isRemoved() || host.level() != level()) return;
+		target = groundUnder(serverLevel(), host.position());
 		setPos(target);
 	}
 
@@ -258,14 +255,19 @@ public final class Laser extends Hazard {
 			double x = Math.cos(angle);
 			double z = Math.sin(angle);
 			// With no count, the spread is the spark's way and the speed its speed
-			serverLevel().sendParticles(ParticleTypes.END_ROD, true, false, target.x + x * radius, target.y + 0.3, target.z + z * radius, 0, -x, 0.1, -z, 0.15);
+			particles(ParticleTypes.END_ROD, target.x + x * radius, target.y + 0.3, target.z + z * radius, 0, -x, 0.1, -z, 0.15);
 		}
 		if (kind.powerful() && (age - AIM_TICKS) % 7 == 0) lightning();
 	}
 
+	// The host's alone: a client draws a bolt's flash and plays its thunder itself
 	private void lightning() {
-		LightningBolt bolt = EntityTypes.LIGHTNING_BOLT.create(serverLevel(), EntitySpawnReason.TRIGGERED);
-		if (bolt == null) return;
+		LightningBolt bolt = new LightningBolt(EntityTypes.LIGHTNING_BOLT, serverLevel()) {
+			@Override
+			public boolean broadcastToPlayer(ServerPlayer player) {
+				return isHost(player);
+			}
+		};
 		double angle = random.nextDouble() * Math.PI * 2;
 		double distance = kind.width() + random.nextDouble() * 6;
 		int x = Mth.floor(target.x + Math.cos(angle) * distance);
@@ -277,7 +279,7 @@ public final class Laser extends Hazard {
 
 	// The super laser's glow: a wider light blue beam turning around the white one
 	private void glow() {
-		glow = new Hazard(serverLevel()) {
+		glow = new Hazard(host) {
 		};
 		glow.setCustomName(Component.literal(BEAM));
 		glow.setPos(target);
@@ -297,21 +299,21 @@ public final class Laser extends Hazard {
 			spin += 0.3F;
 			reshape(glow, beam(kind.width() * 1.6F, -bored, spin), 1);
 		}
-		serverLevel().sendParticles(ParticleTypes.ELECTRIC_SPARK, true, false, target.x, target.y + 0.5, target.z, 6, kind.width() / 2, 0.5, kind.width() / 2, 0.2);
+		particles(ParticleTypes.ELECTRIC_SPARK, target.x, target.y + 0.5, target.z, 6, kind.width() / 2, 0.5, kind.width() / 2, 0.2);
 		int tick = age - firstBlast;
 		if (tick % BLAST_TICKS != 0 || tick / BLAST_TICKS >= kind.blasts()) return;
 		int blast = tick / BLAST_TICKS;
 		Vec3 at = target.add(0, -blast * kind.step(), 0);
 		blast(at, kind.power());
-		serverLevel().sendParticles(ParticleTypes.END_ROD, true, false, at.x, at.y + 1, at.z, 40, 1, 1, 1, 0.3);
-		serverLevel().sendParticles(FLASH, true, false, at.x, at.y + 1, at.z, 1, 0, 0, 0, 0);
-		serverLevel().sendParticles(ParticleTypes.FIREWORK, true, false, at.x, at.y + 1, at.z, 12, 0.5, 0.5, 0.5, 0.3);
+		particles(ParticleTypes.END_ROD, at.x, at.y + 1, at.z, 40, 1, 1, 1, 0.3);
+		particles(FLASH, at.x, at.y + 1, at.z, 1, 0, 0, 0, 0);
+		particles(ParticleTypes.FIREWORK, at.x, at.y + 1, at.z, 12, 0.5, 0.5, 0.5, 0.3);
 		if (blast > 0) return;
 		for (int i = 0; i < kind.ring(); i++) {
 			double angle = i * Math.PI * 2 / kind.ring();
 			blast(target.add(Math.cos(angle) * kind.width(), 0, Math.sin(angle) * kind.width()), kind.ringPower());
 		}
-		serverLevel().sendParticles(ParticleTypes.SONIC_BOOM, true, false, at.x, at.y + 1, at.z, 1, 0, 0, 0, 0);
+		particles(ParticleTypes.SONIC_BOOM, at.x, at.y + 1, at.z, 1, 0, 0, 0, 0);
 		sound(SoundEvents.WARDEN_SONIC_BOOM, 3, 1);
 	}
 
@@ -354,10 +356,10 @@ public final class Laser extends Hazard {
 
 	// Fire, lava and a hiss where the beam eats into the ground
 	private void melt(Vec3 front) {
-		serverLevel().sendParticles(ParticleTypes.LAVA, true, false, front.x, front.y, front.z, 4, 1, 1, 1, 0);
-		serverLevel().sendParticles(ParticleTypes.FLAME, true, false, front.x, front.y, front.z, 10, 1, 1, 1, 0.05);
-		serverLevel().sendParticles(ParticleTypes.SOUL_FIRE_FLAME, true, false, front.x, front.y, front.z, 6, 0.8, 0.8, 0.8, 0.03);
-		if (age % 4 == 0) serverLevel().playSound(null, front.x, front.y, front.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.HOSTILE, 2, 0.6F);
+		particles(ParticleTypes.LAVA, front.x, front.y, front.z, 4, 1, 1, 1, 0);
+		particles(ParticleTypes.FLAME, front.x, front.y, front.z, 10, 1, 1, 1, 0.05);
+		particles(ParticleTypes.SOUL_FIRE_FLAME, front.x, front.y, front.z, 6, 0.8, 0.8, 0.8, 0.03);
+		if (age % 4 == 0) sound(SoundEvents.FIRE_EXTINGUISH, front.x, front.y, front.z, 2, 0.6F);
 	}
 
 	// Everything that breaks within the radius goes. What holds items drops them.
@@ -385,15 +387,15 @@ public final class Laser extends Hazard {
 		int points = 8 + (int) (radius * 4);
 		for (int i = 0; i < points; i++) {
 			double angle = i * Math.PI * 2 / points;
-			serverLevel().sendParticles(ParticleTypes.POOF, true, false, target.x + Math.cos(angle) * radius, target.y + 0.5, target.z + Math.sin(angle) * radius, 1, 0, 0, 0, 0);
+			particles(ParticleTypes.POOF, target.x + Math.cos(angle) * radius, target.y + 0.5, target.z + Math.sin(angle) * radius, 1, 0, 0, 0, 0);
 		}
 	}
 
 	// Smoke and embers rising from the hole
 	private void smoke() {
 		double spread = kind.width() / 3;
-		serverLevel().sendParticles(ParticleTypes.CAMPFIRE_SIGNAL_SMOKE, true, false, target.x, target.y, target.z, 2, spread, 0.3, spread, 0.02);
-		if (age % 3 == 0) serverLevel().sendParticles(ParticleTypes.LAVA, true, false, target.x, target.y, target.z, 2, spread, 0.3, spread, 0);
+		particles(ParticleTypes.CAMPFIRE_SIGNAL_SMOKE, target.x, target.y, target.z, 2, spread, 0.3, spread, 0.02);
+		if (age % 3 == 0) particles(ParticleTypes.LAVA, target.x, target.y, target.z, 2, spread, 0.3, spread, 0);
 	}
 
 	// The red circle, turning as it closes in to the white beam's edge: 0 is
@@ -402,7 +404,7 @@ public final class Laser extends Hazard {
 		double radius = kind.width() / 2 + 2 * (1 - closed);
 		for (int i = 0; i < RING_POINTS; i++) {
 			double angle = age * 0.15 + i * Math.PI * 2 / RING_POINTS;
-			serverLevel().sendParticles(RED, true, false, target.x + Math.cos(angle) * radius, target.y + 0.1, target.z + Math.sin(angle) * radius, 1, 0, 0, 0, 0);
+			particles(RED, target.x + Math.cos(angle) * radius, target.y + 0.1, target.z + Math.sin(angle) * radius, 1, 0, 0, 0, 0);
 		}
 	}
 
@@ -410,12 +412,12 @@ public final class Laser extends Hazard {
 	private void shimmer() {
 		for (int i = 0; i < 2; i++) {
 			Vec3 at = along(1 + random.nextDouble() * 24);
-			serverLevel().sendParticles(RED, true, false, at.x, at.y, at.z, 1, 0.05, 0.05, 0.05, 0);
+			particles(RED, at.x, at.y, at.z, 1, 0.05, 0.05, 0.05, 0);
 		}
 	}
 
 	private void sound(SoundEvent sound, float volume, float pitch) {
-		serverLevel().playSound(null, target.x, target.y, target.z, sound, SoundSource.HOSTILE, volume, pitch);
+		sound(sound, target.x, target.y, target.z, volume, pitch);
 	}
 
 	// Animated on the client over the ticks given

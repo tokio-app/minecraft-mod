@@ -28,7 +28,7 @@ public class Tokio implements ModInitializer {
 		Morph.LOOK.identifier();
 		CommandRegistrationCallback.EVENT.register((dispatcher, context, selection) -> TokioCommand.register(dispatcher, context));
 		ServerLifecycleEvents.SERVER_STOPPING.register(WorldConnection::close);
-		// Before the world saves, so it keeps no super laser's light or night, and no morph
+		// Before the world saves, so it keeps no super laser's light and no morph
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> Laser.stopAll());
 		ServerLifecycleEvents.SERVER_STOPPING.register(Night::stop);
 		ServerLifecycleEvents.SERVER_STOPPING.register(Morph::stopAll);

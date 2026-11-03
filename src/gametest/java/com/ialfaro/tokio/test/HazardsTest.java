@@ -75,7 +75,9 @@ public class HazardsTest {
 		helper.onEachTick(() -> Night.tick(level.getServer()));
 		Laser laser = Laser.fire(player, Laser.SUPER);
 		helper.runAfterDelay(50, () -> {
-			helper.assertTrue(hour.getAsLong() >= 13000 && hour.getAsLong() < 23000, "It isn't night while the super laser charges: " + hour.getAsLong());
+			long seen = (hour.getAsLong() + Night.ahead()) % 24000;
+			helper.assertTrue(seen >= 13000 && seen < 23000, "It isn't night on the player's screen while the super laser charges: " + seen);
+			helper.assertTrue(day(hour.getAsLong()), "The world's clock ran to the night: " + hour.getAsLong());
 			helper.assertTrue(lit(level, spot), "The super laser doesn't light the spot up");
 		});
 		helper.succeedWhen(() -> {
@@ -83,9 +85,9 @@ public class HazardsTest {
 			helper.assertFalse(lit(level, spot), "The super laser's light is still there");
 			boolean deep = BlockPos.betweenClosedStream(spot.offset(-6, -12, -6), spot.offset(6, -12, 6)).anyMatch(pos -> level.getBlockState(pos).isAir());
 			helper.assertTrue(deep, "The super laser didn't bore 12 blocks down");
-			// The hour the batch's first night fell at: about the noon it set
-			long now = hour.getAsLong();
-			helper.assertTrue(now >= 5000 && now < 7000, "The day isn't back: " + now);
+			helper.assertTrue(Night.ahead() == 0, "The day isn't back on the player's screen: " + Night.ahead() + " ahead");
+			// The batch's noon, run on as a clock does
+			helper.assertTrue(day(hour.getAsLong()), "The world's clock isn't at the day: " + hour.getAsLong());
 		});
 	}
 
@@ -93,27 +95,31 @@ public class HazardsTest {
 	@GameTest(environment = "tokio-test:noon_alone", maxTicks = 200)
 	public void nightLiftsOnceNoLaserHoldsIt(GameTestHelper helper) {
 		ServerLevel level = helper.getLevel();
+		MockPlayer player = new MockPlayer(helper);
 		Holder<WorldClock> clock = level.dimensionType().defaultClock().orElseThrow();
 		LongSupplier hour = () -> level.getServer().clockManager().getInstance(clock).totalTicks() % 24000;
-		// The hour night falls from: the batch's noon, unless the clock ran on
-		// before the test started, as it can in the first batch
+		// The world's hour when night falls: the batch's noon, unless the clock
+		// ran on before the test started, as it can in the first batch
 		long[] start = new long[1];
 		helper.startSequence()
-			// Night's state is static: a super laser test can end mid-dawn and
-			// leave the hour it was bringing back
+			// Night's state is static: a super laser test can end mid-dawn
 			.thenExecute(() -> {
 				Night.stop(level.getServer());
 				start[0] = hour.getAsLong();
 			})
 			// A super laser holding it, every tick
 			.thenExecuteFor(40, () -> {
-				Night.hold(level);
+				Night.hold(player);
 				Night.tick(level.getServer());
 			})
-			.thenExecute(() -> helper.assertTrue(hour.getAsLong() >= 13000 && hour.getAsLong() < 23000, "Night didn't fall: " + hour.getAsLong()))
+			.thenExecute(() -> {
+				long seen = (hour.getAsLong() + Night.ahead()) % 24000;
+				helper.assertTrue(seen >= 13000 && seen < 23000, "Night didn't fall on the player's screen: " + seen);
+				helper.assertTrue(Math.abs(hour.getAsLong() - start[0]) < 1000, "The world's clock ran to the night: " + hour.getAsLong() + ", not about " + start[0]);
+			})
 			// Then none, as when it's left behind and stops ticking without ending
 			.thenExecuteFor(40, () -> Night.tick(level.getServer()))
-			.thenExecute(() -> helper.assertTrue(Math.abs(hour.getAsLong() - start[0]) < 1000, "The day isn't back: " + hour.getAsLong() + ", not about " + start[0]))
+			.thenExecute(() -> helper.assertTrue(Night.ahead() == 0, "The day isn't back on the player's screen: " + Night.ahead() + " ahead"))
 			.thenSucceed();
 	}
 
@@ -149,6 +155,11 @@ public class HazardsTest {
 			for (int z = -3; z <= 3; z++) helper.getLevel().setChunkForced(chunk.x() + x, chunk.z() + z, true);
 		}
 		return player;
+	}
+
+	// Outside the overworld's night, 13000 to 23000
+	private static boolean day(long hour) {
+		return hour < 13000 || hour >= 23000;
 	}
 
 	// A light block anywhere the super laser's light could be

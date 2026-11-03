@@ -1,18 +1,22 @@
 package com.ialfaro.tokio.game;
 
+import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.Holder;
+import net.minecraft.network.protocol.game.ClientboundSetTimePacket;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.clock.ServerClockManager;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.clock.ClockNetworkState;
 import net.minecraft.world.clock.WorldClock;
 
 /**
- * The night super lasers bring: the sky runs on to midnight when the first one
- * starts, and on to the hour it was when the last one ends. Each holds it a
- * tick at a time, so one that stops ticking, left behind out of the world's
- * reach, lets the day come back. Used on the server thread; one world at a
- * time runs in the integrated server.
+ * The night super lasers bring, on their host's screen alone: the sky runs on
+ * to midnight when the first one starts, and on to the world's own hour when
+ * the last one ends. The world's clock never changes, so nothing else does:
+ * other players' sky, mob spawning, the time the world saves. Each super laser
+ * holds it a tick at a time, so one that stops ticking, left behind out of the
+ * world's reach, lets the day come back. Used on the server thread; one world
+ * at a time runs in the integrated server.
  */
 public final class Night {
 	// The overworld's day, and its night (data/minecraft/timeline/day.json)
@@ -22,12 +26,15 @@ public final class Night {
 	private static final long NIGHT_ENDS = 23000;
 	// How long the sky takes to run to midnight, or back to the day
 	private static final int RUN_TICKS = 30;
+	// A respawn, a trip to another dimension or a clock someone changed sends
+	// the host the world's own: the night goes again this often
+	private static final int RESEND_TICKS = 20;
 
-	private static ServerClockManager clocks;
+	private static ServerPlayer host;
 	private static Holder<WorldClock> clock;
-	// The hour to come back to, or -1 when it was night already
-	private static long hour = -1;
-	// The run under way: from where, to where, how far along, and whether it's the dawn
+	// How far ahead of the world's clock the host's sky is, in ticks
+	private static long ahead;
+	// The run under way: from how far ahead, to how far, how far along, and whether it's the dawn
 	private static long from;
 	private static long to;
 	private static int ran = RUN_TICKS;
@@ -38,56 +45,69 @@ public final class Night {
 	private Night() {
 	}
 
-	/** Keeps it night for a super laser, this tick. The first hold brings it. */
-	public static void hold(ServerLevel level) {
-		if (heldAt < 0) fall(level);
-		heldAt = level.getServer().getTickCount();
+	/** Keeps it night on the player's screen for a super laser aimed at them, this tick. The first hold brings it. */
+	public static void hold(ServerPlayer player) {
+		if (heldAt < 0) fall(player);
+		heldAt = player.level().getServer().getTickCount();
 	}
 
-	// Runs the sky to midnight, unless it's night already. A dawn under way turns back.
-	private static void fall(ServerLevel level) {
-		Optional<Holder<WorldClock>> found = level.dimensionType().defaultClock();
+	/** How far ahead of the world's clock the host's sky is, in ticks: 0 while it shows the world's hour. */
+	public static long ahead() {
+		return ahead;
+	}
+
+	// Runs the host's sky to midnight, unless it's night there already. A dawn under way turns back.
+	private static void fall(ServerPlayer player) {
+		Optional<Holder<WorldClock>> found = player.level().dimensionType().defaultClock();
 		// The Nether keeps no time
 		if (found.isEmpty()) return;
-		clocks = level.getServer().clockManager();
+		host = player;
 		clock = found.get();
-		long now = now();
+		long seen = world(player.level().getServer()) + ahead;
 		boolean dawning = dawn && ran < RUN_TICKS;
-		long time = now % DAY;
-		if (!dawning) {
-			if (time >= NIGHT_STARTS && time < NIGHT_ENDS) return;
-			hour = time;
-		}
-		run(now, next(now, MIDNIGHT), false);
+		long time = seen % DAY;
+		if (!dawning && time >= NIGHT_STARTS && time < NIGHT_ENDS) return;
+		run(ahead, ahead + Math.floorMod(MIDNIGHT - seen, DAY), false);
 	}
 
-	// Runs the sky on to the hour it was before night fell, if it fell
+	// Runs the host's sky on to the world's own hour, a whole day or so ahead
 	private static void lift() {
-		if (clock == null || hour < 0) return;
-		long now = now();
-		run(now, next(now, hour), true);
+		if (clock == null || ahead == 0) return;
+		run(ahead, Math.ceilDiv(ahead, DAY) * DAY, true);
 	}
 
-	/** After the super lasers' ticks: the day comes back once none held the night. */
+	/** After the super lasers' ticks: the host's sky runs, and the day comes back once none held the night. */
 	public static void tick(MinecraftServer server) {
 		if (heldAt >= 0 && heldAt < server.getTickCount()) {
 			heldAt = -1;
 			lift();
 		}
-		if (ran >= RUN_TICKS || clocks == null) return;
-		ran++;
-		clocks.setTotalTicks(clock, from + (to - from) * ran / RUN_TICKS);
-		if (ran == RUN_TICKS && dawn) hour = -1;
+		if (clock == null) return;
+		if (ran < RUN_TICKS) {
+			ran++;
+			ahead = from + (to - from) * ran / RUN_TICKS;
+			// Whole days ahead the sky looks the world's: its own clock again, the days counted the same
+			if (ran == RUN_TICKS && dawn) ahead = 0;
+			send(server);
+		} else if (ahead != 0 && server.getTickCount() % RESEND_TICKS == 0) {
+			send(server);
+		}
+		if (ran >= RUN_TICKS && ahead == 0) forget();
 	}
 
-	/** Brings the day back at once, before the world saves, and forgets it. */
+	/** Forgets the night as the world closes: the world's clock never changed, so there's no day to bring back. */
 	public static void stop(MinecraftServer server) {
-		if (clocks != null && hour >= 0) clocks.setTotalTicks(clock, next(now(), hour));
-		clocks = null;
-		clock = null;
-		hour = -1;
-		ran = RUN_TICKS;
+		forget();
 		heldAt = -1;
+	}
+
+	// The world's clock, so far ahead, to the host: their client runs it on from there
+	private static void send(MinecraftServer server) {
+		// The game tests' mock players have no connection
+		if (host.connection == null) return;
+		ClockNetworkState world = server.clockManager().getInstance(clock).packNetworkState(server);
+		ClockNetworkState seen = new ClockNetworkState(world.totalTicks() + ahead, world.partialTick(), world.rate());
+		host.connection.send(new ClientboundSetTimePacket(server.overworld().getGameTime(), Map.of(clock, seen)));
 	}
 
 	private static void run(long from, long to, boolean dawn) {
@@ -97,12 +117,15 @@ public final class Night {
 		ran = 0;
 	}
 
-	private static long now() {
-		return clocks.getInstance(clock).totalTicks();
+	private static void forget() {
+		host = null;
+		clock = null;
+		ahead = 0;
+		ran = RUN_TICKS;
+		dawn = false;
 	}
 
-	// The first tick from now at that hour of the day
-	private static long next(long now, long hour) {
-		return now + Math.floorMod(hour - now, DAY);
+	private static long world(MinecraftServer server) {
+		return server.clockManager().getInstance(clock).totalTicks();
 	}
 }
