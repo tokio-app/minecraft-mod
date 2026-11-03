@@ -19,7 +19,8 @@ import net.minecraft.server.permissions.LevelBasedPermissionSet;
 
 /**
  * Runs Tokio's commands in the world as its host player, with gamemaster
- * permission, and keeps their feedback for Tokio instead of the chat.
+ * permission, and keeps their feedback for Tokio instead of the chat. What
+ * they spawn is Tokio's ({@link Spawned}).
  */
 public final class CommandRunner implements Commands {
 	public static final String NO_PLAYER = "The player isn't in the world yet.";
@@ -69,7 +70,7 @@ public final class CommandRunner implements Commands {
 				.withSource(output)
 				.withPermission(LevelBasedPermissionSet.GAMEMASTER)
 				.withCallback((success, value) -> output.success = success);
-		server.getCommands().performPrefixedCommand(source, commandLine);
+		Spawned.during(player, () -> server.getCommands().performPrefixedCommand(source, commandLine));
 		return output.result();
 	}
 

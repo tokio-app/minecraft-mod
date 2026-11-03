@@ -17,7 +17,10 @@ import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.Vec3;
 
-/** A survival player in the test's area, who isn't an op and keeps the chat lines they get. */
+/**
+ * A survival player in the test's area, who isn't an op and keeps the chat
+ * lines they get. It never dies: a dead player tells their client.
+ */
 final class MockPlayer extends ServerPlayer {
 	private final List<String> chat = new ArrayList<>();
 
@@ -54,6 +57,23 @@ final class MockPlayer extends ServerPlayer {
 
 	@Override
 	protected void onEffectsRemoved(Collection<MobEffectInstance> effects) {
+	}
+
+	// Tokio's hostile mobs come after it, and the server player reports their hits through it too
+	@Override
+	public void onEnterCombat() {
+	}
+
+	@Override
+	public void onLeaveCombat() {
+	}
+
+	@Override
+	public void indicateDamage(double xd, double zd) {
+	}
+
+	@Override
+	public void die(DamageSource source) {
 	}
 
 	@Override
