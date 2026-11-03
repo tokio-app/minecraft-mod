@@ -19,7 +19,7 @@ A release is what players download as soon as the workflow publishes it. Confirm
 
 1. Check the branch: `main`, clean and level with `origin/main` (`git fetch origin`, then `git status --short --branch`). If anything is off, stop and tell the user.
 2. Pick the version: the argument if there is one, otherwise propose one from the Conventional Commits since the last tag (`git log --oneline <last tag>..HEAD`): while the version is `0.x`, a `feat!:` or other breaking change bumps the minor, anything else the patch. Confirm it with the user.
-3. Run the checks with JDK 25 (in Git Bash, `export JAVA_HOME="/c/Program Files/Microsoft/jdk-25.0.4.101-hotspot"`): `./gradlew build` passes, and `build/libs/tokio-<version>.jar` holds only `com/ialfaro/tokio/`, `assets/tokio/`, `fabric.mod.json`, `LICENSE_tokio` and the manifest (`unzip -l`).
+3. Run the checks with JDK 25 (in Git Bash, `export JAVA_HOME="/c/Program Files/Microsoft/jdk-25.0.4.101-hotspot"`): `./gradlew build` passes, and `build/libs/tokio-<version>.jar` holds only `com/ialfaro/tokio/`, `assets/tokio/`, `fabric.mod.json`, `tokio.mixins.json`, `LICENSE_tokio` and the manifest (`unzip -l`).
 4. Show the notes: `bash scripts/release-notes.sh`. A wrong one can be fixed in the release on GitHub afterwards, and a rerun keeps the edit.
 5. Change only `version` in `gradle.properties`, and commit it as `chore(release): <version>`, subject only.
 6. Tag it: `git tag v<version>`, lightweight. The workflow fails when the tag doesn't match `gradle.properties`.
