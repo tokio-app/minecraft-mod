@@ -9,7 +9,6 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -43,8 +42,8 @@ public final class Meteor extends Hazard {
 	private int delay;
 	private int flown;
 
-	private Meteor(ServerLevel level, Vec3 start, Vec3 target, int delay) {
-		super(level);
+	private Meteor(ServerPlayer player, Vec3 start, Vec3 target, int delay) {
+		super(player);
 		this.start = start;
 		this.target = target;
 		this.delay = delay;
@@ -79,7 +78,7 @@ public final class Meteor extends Hazard {
 			Vec3 target = groundUnder(level, spot);
 			double angle = random.nextDouble() * Math.PI * 2;
 			Vec3 start = target.add(Math.cos(angle) * AWAY, HEIGHT, Math.sin(angle) * AWAY);
-			Meteor meteor = new Meteor(level, start, target, delay);
+			Meteor meteor = new Meteor(player, start, target, delay);
 			if (delay == 0) meteor.appear();
 			level.addFreshEntity(meteor);
 			meteors.add(meteor);
@@ -106,20 +105,18 @@ public final class Meteor extends Hazard {
 	// Until then it's air, which draws nothing
 	private void appear() {
 		setBlockState(Blocks.MAGMA_BLOCK.defaultBlockState());
-		serverLevel().playSound(null, target.x, target.y, target.z, SoundEvents.FIRECHARGE_USE, SoundSource.HOSTILE, 4, 0.5F);
+		sound(SoundEvents.FIRECHARGE_USE, target.x, target.y, target.z, 4, 0.5F);
 	}
 
-	// Sent to players up to 512 blocks away, as it's far up
 	private void trail(Vec3 at) {
-		ServerLevel level = serverLevel();
-		level.sendParticles(ParticleTypes.FLAME, true, false, at.x, at.y, at.z, 12, 0.6, 0.6, 0.6, 0.02);
-		level.sendParticles(ParticleTypes.LARGE_SMOKE, true, false, at.x, at.y, at.z, 6, 0.5, 0.5, 0.5, 0.01);
-		level.sendParticles(ParticleTypes.LAVA, true, false, at.x, at.y, at.z, 2, 0.4, 0.4, 0.4, 0);
+		particles(ParticleTypes.FLAME, at.x, at.y, at.z, 12, 0.6, 0.6, 0.6, 0.02);
+		particles(ParticleTypes.LARGE_SMOKE, at.x, at.y, at.z, 6, 0.5, 0.5, 0.5, 0.01);
+		particles(ParticleTypes.LAVA, at.x, at.y, at.z, 2, 0.4, 0.4, 0.4, 0);
 	}
 
 	private void land() {
 		blast(target, POWER);
-		serverLevel().sendParticles(ParticleTypes.LAVA, true, false, target.x, target.y, target.z, 30, 1.5, 0.5, 1.5, 0);
+		particles(ParticleTypes.LAVA, target.x, target.y, target.z, 30, 1.5, 0.5, 1.5, 0);
 		leaveRock();
 		discard();
 	}

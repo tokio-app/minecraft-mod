@@ -5,12 +5,17 @@
 	"mixins": [
 		"AvatarMixin",
 		"EntityInvoker",
+		"EvokerFangsMixin",
+		"LightningBoltMixin",
 		"LivingEntityInvoker",
 		"LivingEntityMixin",
 		"MobMixin",
 		"PlayerMixin",
+		"ProjectileMixin",
+		"ServerExplosionMixin",
 		"ServerLevelMixin",
-		"SpiderAttackGoalMixin"
+		"SpiderAttackGoalMixin",
+		"WardenMixin"
 	],
 	"client": [
 		"client.FirstPersonHandsAndItemsRendererMixin"
