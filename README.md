@@ -37,16 +37,26 @@ Hostile ones come after you as soon as they appear, endermen, zombified piglins 
 
 The mod tags each of them `tokio`, so the tag stays with them after you close the world, and a command can find them with `@e[tag=tokio]`.
 
+## Only you
+
+In a LAN world, what Tokio does is for you alone:
+
+- Its mobs only ever come after you, even when another player is closer.
+- Its TNT, creepers, lightning, evoker fangs, meteors and lasers hurt and push only you, and its mobs' arrows and fireballs fly through other players.
+- Only you see and hear the meteors and lasers, and a super laser's night falls on your screen alone.
+
+What they leave behind is everyone's: broken blocks, fire, lava and traps.
+
 ## Meteors and lasers
 
 Tokio can send them for you, cheats or not: on a Java action in the **Games** page, add a **Hazard** step and pick **Meteor**, **Laser**, **Super laser** or **Super duper laser**.
 
 - **Meteor:** a burning rock falls from high in the sky to the ground under you, flying or not, and you have 2 seconds to get out of the way. It leaves a crater with a lump of magma and blackstone in it. With a count, the rest land around you, one after another.
 - **Laser:** a red beam follows the ground under you for 2 seconds, then stops and blinks. A second later it fires and blasts a hole where it stands.
-- **Super laser:** night falls as it aims. Once it stops, the spot lights up and lightning strikes around you. Then it blasts a wide crater and bores a tunnel about 60 blocks down along the beam, through anything but bedrock. The day comes back when it's over.
+- **Super laser:** night falls on your screen as it aims, while the world's clock stays where it was. Once it stops, the spot lights up and lightning strikes around you. Then it blasts a wide crater and bores a tunnel about 60 blocks down along the beam, through anything but bedrock. Your day comes back when it's over.
 - **Super duper laser:** a super laser that first burns down through all the ground over you, so it gets you underground too.
 
-Their explosions break blocks and start fires, like TNT. With the `tnt_explodes` game rule off, they only hurt. Guests in your LAN world see them without the mod, though only players with it see the lasers as glowing beams.
+Their explosions break blocks and start fires, like TNT. With the `tnt_explodes` game rule off, they only hurt. Their particles follow your **Particles** setting: fewer on Decreased, none on Minimal.
 
 ## Turning into a mob
 
