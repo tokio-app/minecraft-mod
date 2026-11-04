@@ -3,12 +3,14 @@ package com.ialfaro.tokio.test;
 import com.ialfaro.tokio.connection.CommandResult;
 import com.ialfaro.tokio.game.CommandRunner;
 import com.ialfaro.tokio.game.Spawned;
+import java.util.stream.Collectors;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.clock.ClockTimeMarkers;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.animal.chicken.Chicken;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.item.ItemStack;
@@ -78,6 +80,61 @@ public class CommandRunnerTest {
 		helper.assertValueEqual(player.getInventory().countItem(Items.DIAMOND), 3, "the diamonds");
 		player.assertNoChat(helper);
 		helper.succeed();
+	}
+
+	// Tokio's enchanted items carry the enchantments component, a map of levels
+	@GameTest
+	public void givesEnchantedItems(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		ok(helper, player, "give @s minecraft:netherite_sword[enchantments={sharpness:5,sweeping_edge:3,fire_aspect:2,knockback:2,looting:3,unbreaking:3,mending:1}] 2");
+		helper.assertValueEqual(player.getInventory().countItem(Items.NETHERITE_SWORD), 2, "the swords");
+		// Swords don't stack, so the second is in the next slot
+		for (int slot = 0; slot < 2; slot++) {
+			helper.assertValueEqual(levels(player.getInventory().getItem(slot)), "fire_aspect:2,knockback:2,looting:3,mending:1,sharpness:5,sweeping_edge:3,unbreaking:3", "sword " + slot + "'s enchantments");
+		}
+		player.assertNoChat(helper);
+		helper.succeed();
+	}
+
+	@GameTest
+	public void putsOnEnchantedArmor(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		ok(helper, player, "item replace entity @s armor.feet with minecraft:netherite_boots[enchantments={protection:4,feather_falling:4,soul_speed:3,depth_strider:3,thorns:3,unbreaking:3,mending:1}]");
+		ItemStack boots = player.getItemBySlot(EquipmentSlot.FEET);
+		helper.assertTrue(boots.is(Items.NETHERITE_BOOTS), "The player wears no netherite boots");
+		helper.assertValueEqual(levels(boots), "depth_strider:3,feather_falling:4,mending:1,protection:4,soul_speed:3,thorns:3,unbreaking:3", "the boots' enchantments");
+		player.assertNoChat(helper);
+		helper.succeed();
+	}
+
+	// Tokio's "replacing yours": the player's own go first, enchanted or not.
+	// With none, the clear fails, which Tokio counts as done. The game's own
+	// mock player, as /clear updates the crafting grid through a connection.
+	@GameTest
+	public void replacesThePlayersOwnItems(GameTestHelper helper) {
+		ServerPlayer player = helper.makeMockServerPlayerInLevel();
+		try {
+			String clear = "clear @s minecraft:netherite_sword";
+			String give = "give @s minecraft:netherite_sword[enchantments={sharpness:5,sweeping_edge:3,fire_aspect:2,knockback:2,looting:3,unbreaking:3,mending:1}] 1";
+			helper.assertFalse(run(helper, player, clear).ok(), "A clear with nothing to take didn't fail");
+			ok(helper, player, give);
+			player.getInventory().add(new ItemStack(Items.NETHERITE_SWORD));
+			runAll(helper, player, clear, give);
+			helper.assertValueEqual(player.getInventory().countItem(Items.NETHERITE_SWORD), 1, "the swords");
+			helper.assertValueEqual(levels(player.getInventory().getItem(0)), "fire_aspect:2,knockback:2,looting:3,mending:1,sharpness:5,sweeping_edge:3,unbreaking:3", "the sword's enchantments");
+		} finally {
+			// Out of the world, where it would be the nearest player of other tests' mobs
+			helper.getLevel().getServer().getPlayerList().remove(player);
+		}
+		helper.succeed();
+	}
+
+	// An item's enchantments as Tokio writes them, sorted by id
+	private static String levels(ItemStack stack) {
+		return stack.getEnchantments().entrySet().stream()
+				.map(entry -> entry.getKey().unwrapKey().orElseThrow().identifier().getPath() + ":" + entry.getIntValue())
+				.sorted()
+				.collect(Collectors.joining(","));
 	}
 
 	@GameTest
