@@ -80,6 +80,38 @@ public class StrikesTest {
 		});
 	}
 
+	@GameTest(padding = 16, maxTicks = 50)
+	public void wardensBoomGoesAfterWhatItChargedAt(GameTestHelper helper) {
+		IronGolem golem = target(helper, 4);
+		MockPlayer player = attacker(helper, EntityTypes.WARDEN);
+		float health = golem.getMaxHealth();
+		// It looks the other way as it charges
+		helper.runAfterDelay(5, () -> {
+			player.setYRot(90);
+			player.setYHeadRot(90);
+		});
+		helper.runAfterDelay(40, () -> {
+			helper.assertTrue(golem.getHealth() == health - 10, "The boom didn't go after what it charged at: " + golem.getHealth());
+			end(helper, player);
+		});
+	}
+
+	@GameTest(maxTicks = 40)
+	public void evokersFangsRingAroundWhatsClose(GameTestHelper helper) {
+		for (int x = 1; x < 8; x++) {
+			for (int z = 1; z < 8; z++) helper.setBlock(x, 0, z, Blocks.STONE);
+		}
+		MockPlayer player = attacker(helper, EntityTypes.EVOKER);
+		// In the middle, with room for the rings, 2 blocks from the golem
+		player.setPos(helper.absoluteVec(new Vec3(4.5, 1, 4.5)));
+		helper.spawnWithNoFreeWill(EntityTypes.IRON_GOLEM, 6.5F, 1, 4.5F);
+		helper.runAfterDelay(25, () -> {
+			// 5 at 1.5 blocks and 8 at 2.5
+			helper.assertValueEqual(fangs(helper, player).size(), 13, "the fangs around the player");
+			end(helper, player);
+		});
+	}
+
 	@GameTest(maxTicks = 100)
 	public void guardiansBeamHurtsAfterItsCharge(GameTestHelper helper) {
 		IronGolem golem = target(helper, 5);
