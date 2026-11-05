@@ -61,7 +61,9 @@ Their explosions break blocks and start fires, like TNT. With the `tnt_explodes`
 
 ## Turning into a mob
 
-Tokio can turn you into any living mob, bosses included, cheats or not. On a Java action in the **Games** page, add a **Turn into mob** step, and a **Back to normal** step on another action to turn you back. Without seconds, you stay the mob until **Back to normal** (`/tokio unmorph`), until you die or until you close the world.
+Tokio can turn you into any living mob, bosses included, cheats or not. On a Java action in the **Games** page, add a **Turn into mob** step, and a **Back to normal** step on another action to turn you back. Without seconds, you stay the mob until **Back to normal** (`/tokio unmorph`) or until you close the world. If you die, you respawn as the mob for the time you had left: its time stops while you're dead.
+
+While you're a mob for a set time, a new **Turn into mob** waits until that time is up, then starts with its own seconds. Several wait in the order they came. A mob without seconds gives way to the next one at once. **Back to normal** turns you back and drops the ones waiting.
 
 - **Look and size:** you're the mob's exact size, with its eyes. In third person you see the mob; in first person your bare arms are hidden. Big mobs reach further and push the camera back.
 - **Stats:** its health, damage, armor, knockback resistance, jump, step height and fall damage. You keep the same share of your hearts: half your health as a player is half an iron golem's. You walk at the mob's own pace, from half to one and a half times your normal walk.

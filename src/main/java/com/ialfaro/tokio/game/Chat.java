@@ -21,8 +21,17 @@ final class Chat {
 
 	static String turnedInto(Component mob, OptionalInt seconds) {
 		if (seconds.isEmpty()) return "Turned into " + mob.getString() + ".";
-		int count = seconds.getAsInt();
-		return "Turned into " + mob.getString() + " for " + count + (count == 1 ? " second." : " seconds.");
+		return "Turned into " + mob.getString() + " for " + duration(seconds.getAsInt()) + ".";
+	}
+
+	private static String duration(int seconds) {
+		return seconds + (seconds == 1 ? " second" : " seconds");
+	}
+
+	// A form waiting its turn behind a timed one, and the others that came before it
+	static String waitsFor(Component mob, OptionalInt seconds, int ahead) {
+		String when = ahead == 0 ? " next" : " after " + ahead + (ahead == 1 ? " other form" : " other forms");
+		return "Turns into " + mob.getString() + when + (seconds.isEmpty() ? "." : ", for " + duration(seconds.getAsInt()) + ".");
 	}
 
 	static String notAMob(Component type) {

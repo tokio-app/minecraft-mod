@@ -84,6 +84,20 @@ public class MorphClientTest implements FabricClientGameTest {
 				context.waitTicks(2);
 			}
 			if (!MorphLooks.failed().isEmpty()) throw new AssertionError("Couldn't draw or animate " + MorphLooks.failed());
+			// While a timed form is on, the next ones wait their turn; turning back drops them
+			expect(tokio(server, "tokio morph minecraft:iron_golem 30"), "Turned into " + name("iron_golem") + " for 30 seconds.");
+			expect(tokio(server, "tokio morph minecraft:zombie 10"), "Turns into " + name("zombie") + " next, for 10 seconds.");
+			expect(tokio(server, "tokio morph minecraft:creeper"), "Turns into " + name("creeper") + " after 1 other form.");
+			// Death keeps them: the host respawns as the golem, its time held while they were dead
+			host(server, "kill @s");
+			context.waitFor(minecraft -> minecraft.player.isDeadOrDying(), 100);
+			context.waitTicks(20);
+			context.runOnClient(minecraft -> minecraft.player.respawn());
+			EntityType<?> golem = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace("iron_golem"));
+			context.waitFor(minecraft -> minecraft.player.isAlive() && Morph.look(minecraft.player) == golem, 200);
+			context.waitFor(minecraft -> MorphLooks.drawnAs(minecraft.player) == golem, 100);
+			context.waitTicks(10);
+			context.takeScreenshot("morph-after-respawn");
 			expect(tokio(server, "tokio unmorph"), "Turned back.");
 			context.waitFor(minecraft -> Morph.look(minecraft.player) == null);
 			context.waitTicks(10);
@@ -115,6 +129,10 @@ public class MorphClientTest implements FabricClientGameTest {
 		expect(tokio(server, "tokio morph minecraft:" + mob), "Turned into " + type.getDescription().getString() + ".");
 		context.waitFor(minecraft -> Morph.look(minecraft.player) == type, 100);
 		context.waitFor(minecraft -> MorphLooks.drawnAs(minecraft.player) == type, 100);
+	}
+
+	private static String name(String mob) {
+		return BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace(mob)).getDescription().getString();
 	}
 
 	// As Tokio runs it, as the host: /execute can't reach /tokio, which only the host sees

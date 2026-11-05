@@ -65,11 +65,15 @@ public final class TokioCommand {
 
 	private static int morph(CommandContext<CommandSourceStack> context, OptionalInt seconds) throws CommandSyntaxException {
 		EntityType<?> type = ResourceArgument.getResource(context, "mob", Registries.ENTITY_TYPE).value();
-		if (!Morph.start(context.getSource().getPlayer(), type, seconds)) {
+		ServerPlayer player = context.getSource().getPlayer();
+		if (!Morph.start(player, type, seconds)) {
 			context.getSource().sendFailure(Component.literal(Chat.notAMob(type.getDescription())));
 			return 0;
 		}
-		context.getSource().sendSuccess(() -> Component.literal(Chat.turnedInto(type.getDescription(), seconds)), false);
+		// Forms wait only while a timed one is on, so one waiting is this one
+		int waiting = Morph.waiting(player);
+		String answer = waiting > 0 ? Chat.waitsFor(type.getDescription(), seconds, waiting - 1) : Chat.turnedInto(type.getDescription(), seconds);
+		context.getSource().sendSuccess(() -> Component.literal(answer), false);
 		return 1;
 	}
 
