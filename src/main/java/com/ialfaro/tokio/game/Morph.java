@@ -54,7 +54,8 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Turns players into mobs: the mob's size and look (through {@link #LOOK},
- * which the mixins and the client read), its stats, traits and sounds. Nothing
+ * which the mixins and the client read), its stats, traits, sounds and attacks
+ * ({@link Attacks}). Nothing
  * is saved: the stats are transient modifiers, the look a non-persistent
  * attachment and the effects last 3 seconds. Used on the server thread; one
  * world at a time runs in the integrated server.
@@ -179,6 +180,7 @@ public final class Morph {
 		Morphed old = MORPHED.get(player);
 		float share = player.getHealth() / player.getMaxHealth();
 		EntityDimensions before = player.getDimensions(player.getPose());
+		Attacks.end(player);
 		if (old != null) {
 			removeEffects(player);
 			// A flyer turning into another flyer keeps flying
@@ -224,6 +226,7 @@ public final class Morph {
 	public static void end(ServerPlayer player) {
 		Morphed morphed = MORPHED.remove(player);
 		if (morphed == null) return;
+		Attacks.end(player);
 		float share = player.getHealth() / player.getMaxHealth();
 		EntityDimensions before = player.getDimensions(player.getPose());
 		for (Holder<Attribute> attribute : TOUCHED) {
@@ -271,6 +274,7 @@ public final class Morph {
 			mob.setPos(player.position());
 			mob.playAmbientSound();
 		}
+		Attacks.tick(player, morphed.type, level.getServer().getTickCount());
 	}
 
 	/** Its steps, played by the mob where the player stands: the server sends them to everyone. */
@@ -284,9 +288,10 @@ public final class Morph {
 	/** Turns a player who respawned back: the morph ends on death and on leaving the End. */
 	public static void respawned(ServerPlayer old, ServerPlayer player, boolean alive) {
 		if (MORPHED.remove(old) == null) return;
-		// Leaving the End copies the effects and the attachment
+		// Leaving the End copies the effects and the attachments
 		removeEffects(player);
 		player.removeAttached(LOOK);
+		player.removeAttached(Attacks.WINDUP);
 		player.refreshDimensions();
 		if (alive) player.setHealth(old.getHealth() / old.getMaxHealth() * player.getMaxHealth());
 	}
@@ -295,6 +300,7 @@ public final class Morph {
 	public static void stopAll(MinecraftServer server) {
 		for (ServerPlayer player : List.copyOf(MORPHED.keySet())) end(player);
 		MORPHED.clear();
+		Attacks.stopAll();
 		SERVER_INSTANCES.clear();
 		lastTick = -1;
 	}
