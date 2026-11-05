@@ -33,7 +33,7 @@ Only the world's host can use them. The meteor, the laser and the morphs also ne
 
 Mobs that Tokio's actions summon don't burn in daylight, so zombies and skeletons stay around in the day. Fire and lava still burn them.
 
-Hostile ones come after you as soon as they appear, endermen, zombified piglins and piglins included, and they don't give up: a spider keeps at it in daylight too. Animals and mobs that are only neutral, like wolves, bees and iron golems, are left alone.
+For their first second they attack no one, so a crowd can't kill you the moment it appears at your feet. Then the hostile ones come after you, endermen, zombified piglins and piglins included, and they don't give up: a spider keeps at it in daylight too. Animals and mobs that are only neutral, like wolves, bees and iron golems, are left alone.
 
 The mod tags each of them `tokio`, so the tag stays with them after you close the world, and a command can find them with `@e[tag=tokio]`.
 
