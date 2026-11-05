@@ -22,7 +22,10 @@
 		"WardenMixin"
 	],
 	"client": [
-		"client.FirstPersonHandsAndItemsRendererMixin"
+		"client.BlazeInvoker",
+		"client.FirstPersonHandsAndItemsRendererMixin",
+		"client.GuardianInvoker",
+		"client.SpellcasterIllagerAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1
