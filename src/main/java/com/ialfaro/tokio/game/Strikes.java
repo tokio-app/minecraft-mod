@@ -50,13 +50,16 @@ final class Strikes {
 	}
 
 	/**
-	 * The Warden's sonic boom (SonicBoom): it charges for 34 ticks, then hits the
-	 * first living thing along the look within 15 blocks, through walls, for 10
-	 * and a push. It plays for 60 ticks and cools down for 40, so the next one
-	 * comes 100 ticks after the start.
+	 * The Warden's sonic boom (SonicBoom): it charges for 34 ticks, then hits
+	 * what it charged at, wherever it went, while it's in reach, else the first
+	 * living thing along the look; through walls, within 15 blocks, for 10 and a
+	 * push. It plays for 60 ticks and cools down for 40, so the next one comes
+	 * 100 ticks after the start.
 	 */
 	private static final class SonicBoom implements Attack {
 		private static final double RANGE = 15;
+		// SonicBoom's reach up and down
+		private static final double RANGE_Y = 20;
 		private static final float DAMAGE = 10;
 
 		@Override
@@ -72,14 +75,14 @@ final class Strikes {
 		@Override
 		public LivingEntity start(ServerPlayer player) {
 			mob(player, EntityTypes.WARDEN).playSound(SoundEvents.WARDEN_SONIC_CHARGE, 3.0F, 1.0F);
-			return null;
+			return Attacks.aimed(player, RANGE, true);
 		}
 
 		@Override
 		public void fire(ServerPlayer player, LivingEntity aimed) {
 			ServerLevel level = player.level();
 			Mob warden = mob(player, EntityTypes.WARDEN);
-			LivingEntity target = Attacks.aimed(player, RANGE, true);
+			LivingEntity target = aimed != null && aimed.isAlive() && player.closerThan(aimed, RANGE, RANGE_Y) ? aimed : Attacks.aimed(player, RANGE, true);
 			Vec3 source = player.position().add(warden.getAttachments().get(EntityAttachment.WARDEN_CHEST, 0, player.getYRot()));
 			Vec3 end = target != null ? target.getEyePosition() : player.getEyePosition().add(player.getViewVector(1.0F).scale(RANGE));
 			Vec3 delta = end.subtract(source);
@@ -98,13 +101,17 @@ final class Strikes {
 
 	/**
 	 * The evoker's fangs (Evoker.EvokerAttackSpellGoal): 20 ticks of warmup, then
-	 * 16 fangs in a line along the player's horizontal look, 1.25 blocks apart,
-	 * each a tick after the last. It casts again 100 ticks after the start. No
-	 * vexes: they'd attack their summoner.
+	 * 16 fangs in a line toward what it cast at, or along the player's look,
+	 * 1.25 blocks apart, each a tick after the last; within 3 blocks of what it
+	 * cast at, two rings around the player. It casts again 100 ticks after the
+	 * start. No vexes: they'd attack their summoner.
 	 */
 	private static final class Fangs implements Attack {
 		private static final int FANGS = 16;
 		private static final double SPACING = 1.25;
+		// As far as the line reaches
+		private static final double RANGE = FANGS * SPACING;
+		private static final double RINGS_WITHIN = 3;
 
 		@Override
 		public int windup() {
@@ -119,24 +126,38 @@ final class Strikes {
 		@Override
 		public LivingEntity start(ServerPlayer player) {
 			mob(player, EntityTypes.EVOKER).playSound(SoundEvents.EVOKER_PREPARE_ATTACK, 1.0F, 1.0F);
-			return null;
+			return Attacks.aimed(player, RANGE, false);
 		}
 
 		@Override
 		public void fire(ServerPlayer player, LivingEntity target) {
-			float angle = (player.getYRot() + 90.0F) * Mth.DEG_TO_RAD;
-			for (int i = 0; i < FANGS; i++) {
-				double reach = SPACING * (i + 1);
-				fang(player, player.getX() + Mth.cos(angle) * reach, player.getZ() + Mth.sin(angle) * reach, angle, i);
+			boolean toward = target != null && target.isAlive();
+			// Without a target, as though one stood level with the player
+			double minY = toward ? Math.min(target.getY(), player.getY()) : player.getY();
+			double maxY = (toward ? Math.max(target.getY(), player.getY()) : player.getY()) + 1.0;
+			float angle = toward ? (float) Mth.atan2(target.getZ() - player.getZ(), target.getX() - player.getX()) : (player.getYRot() + 90.0F) * Mth.DEG_TO_RAD;
+			if (toward && player.distanceToSqr(target) < RINGS_WITHIN * RINGS_WITHIN) {
+				for (int i = 0; i < 5; i++) {
+					float around = angle + i * (float) Math.PI * 0.4F;
+					fang(player, player.getX() + Mth.cos(around) * 1.5, player.getZ() + Mth.sin(around) * 1.5, minY, maxY, around, 0);
+				}
+				for (int i = 0; i < 8; i++) {
+					float around = angle + i * (float) Math.PI * 2.0F / 8.0F + (float) (Math.PI * 2.0 / 5.0);
+					fang(player, player.getX() + Mth.cos(around) * 2.5, player.getZ() + Mth.sin(around) * 2.5, minY, maxY, around, 3);
+				}
+			} else {
+				for (int i = 0; i < FANGS; i++) {
+					double reach = SPACING * (i + 1);
+					fang(player, player.getX() + Mth.cos(angle) * reach, player.getZ() + Mth.sin(angle) * reach, minY, maxY, angle, i);
+				}
 			}
 			mob(player, EntityTypes.EVOKER).playSound(SoundEvents.EVOKER_CAST_SPELL, 1.0F, 1.0F);
 		}
 
-		// The goal's createSpellEntity, its target at the player's height: on the ground from a block over their feet to one under
-		private static void fang(ServerPlayer player, double x, double z, float angle, int delay) {
+		// The goal's createSpellEntity: on the ground between the two heights, from a block over the higher one
+		private static void fang(ServerPlayer player, double x, double z, double minY, double maxY, float angle, int delay) {
 			Level level = player.level();
-			double minY = player.getY();
-			BlockPos pos = BlockPos.containing(x, minY + 1.0, z);
+			BlockPos pos = BlockPos.containing(x, maxY, z);
 			do {
 				BlockPos below = pos.below();
 				if (level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)) {
