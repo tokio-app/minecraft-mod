@@ -14,6 +14,7 @@
 			"com.ialfaro.tokio.test.SpawnedTest"
 		],
 		"fabric-client-gametest": [
+			"com.ialfaro.tokio.test.GraceClientTest",
 			"com.ialfaro.tokio.test.HostOnlyClientTest",
 			"com.ialfaro.tokio.test.MorphClientTest"
 		]

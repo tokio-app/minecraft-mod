@@ -2,6 +2,8 @@ package com.ialfaro.tokio.game;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityReference;
@@ -14,15 +16,28 @@ import net.minecraft.world.entity.monster.warden.Warden;
 
 /**
  * What Tokio's commands add to the world: each entity gets the {@link #TAG}
- * tag, saved with it, and the hostile mobs go after the world's host at once.
- * Tagged mobs never burn in daylight ({@code MobMixin}). Used on the server
- * thread.
+ * tag, saved with it. Tagged mobs never burn in daylight ({@code MobMixin}),
+ * and go after no one for their first {@link #GRACE_TICKS}; then the hostile
+ * ones go after the world's host. Used on the server thread.
  */
 public final class Spawned {
 	public static final String TAG = "tokio";
 
+	/**
+	 * How long Tokio's mobs leave everyone alone after they appear, in ticks
+	 * (1 second, the user's call): they appear at the host's feet, so without
+	 * it a crowd's first hits come at once and can kill before the host sees
+	 * them. A mob that loads with its chunk gets it again, as its age starts
+	 * over.
+	 */
+	public static final int GRACE_TICKS = 20;
+
 	// What the command under way added (ServerLevelMixin), or null outside Tokio's commands
 	private static List<Entity> added;
+
+	// Tokio's hostile mobs in their grace, and the host each goes after once it's
+	// over. Weak, so a mob that leaves the world isn't kept.
+	private static final Map<Mob, ServerPlayer> waiting = new WeakHashMap<>();
 
 	private Spawned() {
 	}
@@ -39,8 +54,20 @@ public final class Spawned {
 		for (Entity entity : entities) {
 			if (entity.isRemoved()) continue;
 			entity.addTag(TAG);
-			if (entity instanceof Mob mob && mob instanceof Enemy) attack(mob, host);
+			if (entity instanceof Mob mob && mob instanceof Enemy) waiting.put(mob, host);
 		}
+	}
+
+	/** Whether the mob is Tokio's and still in its grace, when it can't go after anyone. */
+	public static boolean inGrace(Mob mob) {
+		return mob.tickCount < GRACE_TICKS && is(mob);
+	}
+
+	/** After a mob's tick on the server: Tokio's hostile ones go after their host once their grace is over. */
+	public static void ticked(Mob mob) {
+		if (waiting.isEmpty() || mob.tickCount < GRACE_TICKS) return;
+		ServerPlayer host = waiting.remove(mob);
+		if (host != null && host.isAlive() && !host.isRemoved()) attack(mob, host);
 	}
 
 	/** An entity entered a world; it's Tokio's while one of its commands runs. */
