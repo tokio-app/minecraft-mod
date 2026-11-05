@@ -87,6 +87,101 @@ public class MorphTest {
 		});
 	}
 
+	@GameTest(maxTicks = 60)
+	public void aNewFormWaitsForTheTimedOne(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		Morph.start(player, EntityTypes.IRON_GOLEM, OptionalInt.of(1));
+		helper.assertTrue(Morph.start(player, EntityTypes.ZOMBIE, OptionalInt.of(1)), "Couldn't line up a zombie");
+		helper.assertValueEqual(Morph.look(player), EntityTypes.IRON_GOLEM, "the look as the zombie comes");
+		helper.assertValueEqual(Morph.waiting(player), 1, "the forms waiting");
+		helper.onEachTick(() -> Morph.tick(helper.getLevel().getServer()));
+		helper.runAfterDelay(15, () -> helper.assertValueEqual(Morph.look(player), EntityTypes.IRON_GOLEM, "the look before the golem's second is up"));
+		helper.runAfterDelay(30, () -> {
+			helper.assertValueEqual(Morph.look(player), EntityTypes.ZOMBIE, "the look once the golem's second is up");
+			helper.assertValueEqual(Morph.waiting(player), 0, "the forms waiting once the zombie's on");
+		});
+		helper.runAfterDelay(50, () -> {
+			helper.assertTrue(Morph.look(player) == null, "Still a mob after both seconds");
+			helper.succeed();
+		});
+	}
+
+	@GameTest
+	public void aNewFormReplacesOneWithoutSecondsAtOnce(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		Morph.start(player, EntityTypes.IRON_GOLEM, OptionalInt.empty());
+		Morph.start(player, EntityTypes.ZOMBIE, OptionalInt.of(1));
+		helper.assertValueEqual(Morph.look(player), EntityTypes.ZOMBIE, "the look");
+		helper.assertValueEqual(Morph.waiting(player), 0, "the forms waiting");
+		Morph.end(player);
+		helper.succeed();
+	}
+
+	@GameTest(maxTicks = 40)
+	public void aWaitingFormWithoutSecondsGivesWayToTheOneBehindIt(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		Morph.start(player, EntityTypes.IRON_GOLEM, OptionalInt.of(1));
+		Morph.start(player, EntityTypes.ZOMBIE, OptionalInt.empty());
+		Morph.start(player, EntityTypes.CREEPER, OptionalInt.empty());
+		helper.onEachTick(() -> Morph.tick(helper.getLevel().getServer()));
+		helper.runAfterDelay(30, () -> {
+			helper.assertValueEqual(Morph.look(player), EntityTypes.CREEPER, "the look after the golem");
+			Morph.end(player);
+			helper.succeed();
+		});
+	}
+
+	// Dead for 30 ticks with the golem's second still to run, then respawned as the game does (AFTER_RESPAWN)
+	@GameTest(maxTicks = 100)
+	public void comesBackAfterDeathWithTheTimeItHadLeft(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		Morph.start(player, EntityTypes.IRON_GOLEM, OptionalInt.of(1));
+		Morph.start(player, EntityTypes.ZOMBIE, OptionalInt.of(1));
+		player.setHealth(0);
+		helper.onEachTick(() -> Morph.tick(helper.getLevel().getServer()));
+		MockPlayer[] respawned = new MockPlayer[1];
+		helper.runAfterDelay(30, () -> {
+			helper.assertValueEqual(Morph.look(player), EntityTypes.IRON_GOLEM, "the look while dead past its second");
+			respawned[0] = new MockPlayer(helper);
+			Morph.respawned(player, respawned[0], false);
+			helper.assertValueEqual(Morph.look(respawned[0]), EntityTypes.IRON_GOLEM, "the look as they respawn");
+			helper.assertValueEqual(Morph.waiting(respawned[0]), 1, "the forms waiting as they respawn");
+		});
+		helper.runAfterDelay(45, () -> helper.assertValueEqual(Morph.look(respawned[0]), EntityTypes.IRON_GOLEM, "the look with time left"));
+		helper.runAfterDelay(60, () -> helper.assertValueEqual(Morph.look(respawned[0]), EntityTypes.ZOMBIE, "the look once its time is up"));
+		helper.runAfterDelay(80, () -> {
+			helper.assertTrue(Morph.look(respawned[0]) == null, "Still a mob after both");
+			helper.succeed();
+		});
+	}
+
+	@GameTest
+	public void oneWithoutSecondsComesBackAfterDeathToo(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		Morph.start(player, EntityTypes.IRON_GOLEM, OptionalInt.empty());
+		player.setHealth(0);
+		MockPlayer respawned = new MockPlayer(helper);
+		Morph.respawned(player, respawned, false);
+		helper.assertValueEqual(Morph.look(respawned), EntityTypes.IRON_GOLEM, "the look as they respawn");
+		near(helper, respawned.getMaxHealth(), 100, "the max health as they respawn");
+		Morph.end(respawned);
+		helper.succeed();
+	}
+
+	@GameTest(maxTicks = 40)
+	public void backToNormalDropsTheWaitingForms(GameTestHelper helper) {
+		MockPlayer player = new MockPlayer(helper);
+		Morph.start(player, EntityTypes.IRON_GOLEM, OptionalInt.of(1));
+		Morph.start(player, EntityTypes.ZOMBIE, OptionalInt.of(1));
+		Morph.end(player);
+		helper.assertValueEqual(Morph.waiting(player), 0, "the forms waiting after Back to normal");
+		helper.onEachTick(() -> Morph.tick(helper.getLevel().getServer()));
+		helper.runAfterDelay(30, () -> {
+			helper.assertTrue(Morph.look(player) == null, "A waiting form came after Back to normal");
+			helper.succeed();
+		});
+	}
+
 	@GameTest
 	public void everyMobComesAndGoes(GameTestHelper helper) {
 		MockPlayer player = new MockPlayer(helper);
