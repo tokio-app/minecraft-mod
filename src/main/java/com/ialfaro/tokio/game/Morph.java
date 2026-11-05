@@ -1,7 +1,9 @@
 package com.ialfaro.tokio.game;
 
 import com.ialfaro.tokio.mixin.EntityInvoker;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,6 +111,8 @@ public final class Morph {
 	private static final float ROOM_SEARCH_MAX = 4;
 
 	private static final Map<ServerPlayer, Morphed> MORPHED = new HashMap<>();
+	// The forms that came while a timed one was on, in order: each waits for the one before to end
+	private static final Map<ServerPlayer, Deque<Waiting>> WAITING = new HashMap<>();
 	// One mob of each kind per side, made but never added to the world
 	private static final Map<EntityType<?>, Mob> SERVER_INSTANCES = new HashMap<>();
 	private static final Map<EntityType<?>, Mob> CLIENT_INSTANCES = new HashMap<>();
@@ -119,8 +123,8 @@ public final class Morph {
 
 	private static final class Morphed {
 		final EntityType<?> type;
-		// The server tick it ends at, or -1 for the whole session
-		final long endsAt;
+		// The server tick it ends at, or -1 for the whole session; it moves on while the player is dead
+		long endsAt;
 		int ambientTime;
 		int air;
 		// Where the player was last tick, to tell a dragon flying down
@@ -131,6 +135,9 @@ public final class Morph {
 			this.endsAt = endsAt;
 			this.air = air;
 		}
+	}
+
+	private record Waiting(EntityType<?> type, OptionalInt seconds) {
 	}
 
 	/** Whether a player can turn into this: a living mob, not a player, mannequin or armor stand. */
@@ -171,11 +178,37 @@ public final class Morph {
 		CLIENT_INSTANCES.clear();
 	}
 
-	/** Turns the player into the mob, for that many seconds or the whole session. False when it isn't a mob. */
+	/**
+	 * Turns the player into the mob, for that many seconds or the whole session.
+	 * While they're a mob for a set time, it waits its turn instead ({@link #waiting}),
+	 * so a timed form always runs its course; one for the whole session gives way at
+	 * once. False when it isn't a mob.
+	 */
 	public static boolean start(ServerPlayer player, EntityType<?> type, OptionalInt seconds) {
-		if (!canBecome(type)) return false;
+		if (!canBecome(type) || instance(player.level(), type) == null) return false;
+		Morphed current = MORPHED.get(player);
+		if (current != null && current.endsAt >= 0) {
+			WAITING.computeIfAbsent(player, waiting -> new ArrayDeque<>()).add(new Waiting(type, seconds));
+			return true;
+		}
+		become(player, type, ticks(seconds));
+		return true;
+	}
+
+	private static long ticks(OptionalInt seconds) {
+		return seconds.isPresent() ? seconds.getAsInt() * 20L : -1;
+	}
+
+	/** How many forms wait their turn for the player, the last one to come included. */
+	public static int waiting(ServerPlayer player) {
+		Deque<Waiting> waiting = WAITING.get(player);
+		return waiting == null ? 0 : waiting.size();
+	}
+
+	// For that many ticks, or -1 for the whole session
+	private static void become(ServerPlayer player, EntityType<?> type, long ticks) {
 		Mob mob = instance(player.level(), type);
-		if (mob == null) return false;
+		if (mob == null) return;
 		boolean flies = FLYERS.contains(type);
 		Morphed old = MORPHED.get(player);
 		float share = player.getHealth() / player.getMaxHealth();
@@ -192,11 +225,21 @@ public final class Morph {
 		player.setAttached(LOOK, type);
 		resize(player, before);
 		player.setHealth(share * player.getMaxHealth());
-		long endsAt = seconds.isPresent() ? player.level().getServer().getTickCount() + seconds.getAsInt() * 20L : -1;
+		long endsAt = ticks >= 0 ? player.level().getServer().getTickCount() + ticks : -1;
 		Morphed morphed = new Morphed(type, endsAt, old != null ? old.air : player.getAirSupply());
 		morphed.lastY = player.getY();
 		MORPHED.put(player, morphed);
-		return true;
+	}
+
+	// The next form in line, or null. One for the whole session gives way to whoever came after it,
+	// as it does when they come while it's on, so it's skipped when another waits behind it
+	private static Waiting next(ServerPlayer player) {
+		Deque<Waiting> waiting = WAITING.get(player);
+		if (waiting == null) return null;
+		while (waiting.size() > 1 && waiting.peek().seconds().isEmpty()) waiting.poll();
+		Waiting next = waiting.poll();
+		if (waiting.isEmpty()) WAITING.remove(player);
+		return next;
 	}
 
 	// Airborne at once, at the mob's speed
@@ -222,8 +265,9 @@ public final class Morph {
 		player.onUpdateAbilities();
 	}
 
-	/** Turns the player back, if they're a mob. */
+	/** Turns the player back, if they're a mob, and drops the forms waiting their turn. */
 	public static void end(ServerPlayer player) {
+		WAITING.remove(player);
 		Morphed morphed = MORPHED.remove(player);
 		if (morphed == null) return;
 		Attacks.end(player);
@@ -249,10 +293,17 @@ public final class Morph {
 		for (Map.Entry<ServerPlayer, Morphed> entry : List.copyOf(MORPHED.entrySet())) {
 			ServerPlayer player = entry.getKey();
 			Morphed morphed = entry.getValue();
-			if (player.isRemoved()) {
+			// A dead player's body goes 20 ticks after they die, and they're still to respawn
+			if (player.isRemoved() && player.getRemovalReason() != Entity.RemovalReason.KILLED) {
 				MORPHED.remove(player);
+				WAITING.remove(player);
+			} else if (!player.isAlive()) {
+				// Its time stands still while they're dead: it comes back with them (respawned)
+				if (morphed.endsAt >= 0) morphed.endsAt++;
 			} else if (morphed.endsAt >= 0 && now >= morphed.endsAt) {
-				end(player);
+				Waiting next = next(player);
+				if (next != null) become(player, next.type(), ticks(next.seconds()));
+				else end(player);
 			} else if (player.isAlive()) {
 				tick(player, morphed);
 			}
@@ -285,21 +336,30 @@ public final class Morph {
 		((EntityInvoker) mob).tokio$playStepSound(pos, state);
 	}
 
-	/** Turns a player who respawned back: the morph ends on death and on leaving the End. */
+	/**
+	 * Puts the morph back on a player who respawned, with the time it had left as
+	 * they died (or left the End), and the forms waiting their turn after it.
+	 */
 	public static void respawned(ServerPlayer old, ServerPlayer player, boolean alive) {
-		if (MORPHED.remove(old) == null) return;
-		// Leaving the End copies the effects and the attachments
+		Deque<Waiting> waiting = WAITING.remove(old);
+		Morphed morphed = MORPHED.remove(old);
+		if (morphed == null) return;
+		// Leaving the End copies the effects and the attachments; the morph starts over on the new player
 		removeEffects(player);
 		player.removeAttached(LOOK);
 		player.removeAttached(Attacks.WINDUP);
 		player.refreshDimensions();
 		if (alive) player.setHealth(old.getHealth() / old.getMaxHealth() * player.getMaxHealth());
+		long now = player.level().getServer().getTickCount();
+		become(player, morphed.type, morphed.endsAt < 0 ? -1 : Math.max(1, morphed.endsAt - now));
+		if (waiting != null) WAITING.put(player, waiting);
 	}
 
 	/** Turns everyone back before the world saves, and forgets the mobs. */
 	public static void stopAll(MinecraftServer server) {
 		for (ServerPlayer player : List.copyOf(MORPHED.keySet())) end(player);
 		MORPHED.clear();
+		WAITING.clear();
 		Attacks.stopAll();
 		SERVER_INSTANCES.clear();
 		lastTick = -1;
