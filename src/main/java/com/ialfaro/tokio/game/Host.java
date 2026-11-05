@@ -40,6 +40,21 @@ public final class Host {
 		return blasting || tokios(explosion.getDirectSourceEntity()) || tokios(explosion.getIndirectSourceEntity());
 	}
 
+	/**
+	 * Whether what Tokio made, like an arrow or a potion, passes this entity by:
+	 * another player, or the owner of what a morphed player's attack made
+	 * (tagged, with an owner), whose own attacks never hurt them.
+	 */
+	public static boolean spares(Entity made, Entity entity) {
+		return isOther(entity) && tokios(made) || Spawned.is(made) && made instanceof TraceableEntity traceable && traceable.getOwner() == entity;
+	}
+
+	/** Whether the blast passes this entity by: another player in Tokio's, or the owner of a tagged projectile that set it off. */
+	public static boolean spares(Explosion explosion, Entity entity) {
+		return isOther(entity) && tokios(explosion) || explosion.getDirectSourceEntity() instanceof Entity source && Spawned.is(source)
+				&& explosion.getIndirectSourceEntity() == entity;
+	}
+
 	/** Whether one of the mod's own blasts is under way, which only the host sees and hears. */
 	public static boolean blasting() {
 		return blasting;
