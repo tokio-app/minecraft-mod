@@ -62,14 +62,15 @@ public class CommandRunnerTest {
 		helper.succeed();
 	}
 
-	// A chicken carrying a baby zombie, which is Tokio's and after the player
+	// A chicken carrying a baby zombie, which is Tokio's and in its grace
 	private static Zombie jockey(GameTestHelper helper, MockPlayer player) {
 		Chicken chicken = helper.findOneEntity(EntityTypes.CHICKEN);
 		helper.assertTrue(chicken.getFirstPassenger() instanceof Zombie, "The chicken carries no zombie");
 		Zombie rider = (Zombie) chicken.getFirstPassenger();
 		helper.assertTrue(rider.isBaby(), "The rider isn't a baby");
 		helper.assertTrue(Spawned.is(rider), "The rider isn't tagged");
-		helper.assertTrue(rider.getTarget() == player, "The rider isn't after the player");
+		// After the player once its grace is over (SpawnedTest)
+		helper.assertTrue(rider.getTarget() == null, "The rider went after the player in its grace");
 		return rider;
 	}
 

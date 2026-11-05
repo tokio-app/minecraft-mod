@@ -5,6 +5,7 @@ import com.ialfaro.tokio.game.CommandRunner;
 import com.ialfaro.tokio.game.Host;
 import com.ialfaro.tokio.game.Laser;
 import com.ialfaro.tokio.game.Meteor;
+import com.ialfaro.tokio.game.Spawned;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.lang.reflect.Method;
@@ -49,11 +50,13 @@ import net.minecraft.world.phys.Vec3;
  * it checks within that tick: no other test sees a host or these players.
  */
 public class HostOnlyTest {
+	// Each mob is aged past its grace, in which it goes after no one at all
 	@GameTest
 	public void tokiosMobsGoAfterTheHostAlone(GameTestHelper helper) {
 		hosted(helper, (host, guest) -> {
 			ok(helper, host, "summon minecraft:zombie ~ ~ ~");
 			Zombie zombie = helper.findOneEntity(EntityTypes.ZOMBIE);
+			zombie.tickCount = Spawned.GRACE_TICKS;
 			zombie.setTarget(guest);
 			helper.assertTrue(zombie.getTarget() == null, "Tokio's zombie went after another player");
 			zombie.setTarget(host);
@@ -61,10 +64,12 @@ public class HostOnlyTest {
 			// A brain's target goes through the same check
 			ok(helper, host, "summon minecraft:piglin ~ ~ ~");
 			Piglin piglin = helper.findOneEntity(EntityTypes.PIGLIN);
+			piglin.tickCount = Spawned.GRACE_TICKS;
 			piglin.getBrain().setMemory(MemoryModuleType.ATTACK_TARGET, guest);
 			helper.assertTrue(piglin.getTarget() == null, "Tokio's piglin went after another player");
 			ok(helper, host, "summon minecraft:warden ~ ~ ~");
 			Warden warden = helper.findOneEntity(EntityTypes.WARDEN);
+			warden.tickCount = Spawned.GRACE_TICKS;
 			helper.assertFalse(warden.canTargetEntity(guest), "Tokio's Warden can get angry at another player");
 			helper.assertTrue(warden.canTargetEntity(host), "Tokio's Warden can't get angry at the host");
 			// The world's own go after anyone
@@ -177,7 +182,7 @@ public class HostOnlyTest {
 	// A survival player the world's searches find, as blasts, bolts and fangs
 	// do; the mock players aren't in it. Its connection goes nowhere. It takes
 	// a blast at its feet without dying.
-	private static ServerPlayer inTheWorld(GameTestHelper helper, Vec3 at) {
+	static ServerPlayer inTheWorld(GameTestHelper helper, Vec3 at) {
 		CommonListenerCookie cookie = CommonListenerCookie.createInitial(new GameProfile(UUID.randomUUID(), "test-player"), false);
 		ServerPlayer player = new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(), cookie.gameProfile(), cookie.clientInformation()) {
 			// The game spares a player for 3 seconds after they join; these take the hits at once
