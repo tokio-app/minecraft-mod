@@ -1,7 +1,11 @@
 package com.ialfaro.tokio.client;
 
 import com.ialfaro.tokio.Tokio;
+import com.ialfaro.tokio.game.Attacks;
 import com.ialfaro.tokio.game.Morph;
+import com.ialfaro.tokio.mixin.client.BlazeInvoker;
+import com.ialfaro.tokio.mixin.client.GuardianInvoker;
+import com.ialfaro.tokio.mixin.client.SpellcasterIllagerAccessor;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -25,7 +29,15 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
+import net.minecraft.world.entity.monster.Blaze;
+import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.Ghast;
+import net.minecraft.world.entity.monster.Guardian;
+import net.minecraft.world.entity.monster.breeze.Breeze;
+import net.minecraft.world.entity.monster.illager.Evoker;
+import net.minecraft.world.entity.monster.warden.Warden;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
@@ -47,7 +59,11 @@ public final class MorphLooks implements ClientModInitializer {
 	private static final Set<EntityType<?>> FAILED = new HashSet<>();
 	// Kinds whose tick failed, logged once and kept still from then on
 	private static final Set<EntityType<?>> STILL = new HashSet<>();
+	// The copy each player's attack was winding up on when last drawn, by player id
+	private static final Map<Integer, Mob> WINDING = new HashMap<>();
 	private static ClientLevel lastLevel;
+	// The evoker's fangs spell, by its id: the spells' enum is protected
+	private static final byte FANGS = 2;
 
 	@Override
 	public void onInitializeClient() {
@@ -74,6 +90,7 @@ public final class MorphLooks implements ClientModInitializer {
 			COPIES.clear();
 			SIZED.clear();
 			DRAWN.clear();
+			WINDING.clear();
 			Morph.forgetClientInstances();
 		}
 		if (level == null) return;
@@ -121,6 +138,8 @@ public final class MorphLooks implements ClientModInitializer {
 				Mob mob = copy(level, player, look, partialTick);
 				EntityRenderState state = Minecraft.getInstance().getEntityRenderDispatcher().extractEntity(mob, partialTick);
 				animate(avatar, state);
+				// A charged blaze burns
+				if (mob instanceof Blaze) state.displayFireAnimation |= mob.isOnFire();
 				states.set(i, state);
 				DRAWN.put(player.getId(), look);
 			} catch (RuntimeException e) {
@@ -157,9 +176,34 @@ public final class MorphLooks implements ClientModInitializer {
 		}
 		mob.setLeftHanded(player.getMainArm() == HumanoidArm.LEFT);
 		mob.setInvisible(player.isInvisible());
-		mob.setPose(player.getPose());
+		Integer windup = player.getAttached(Attacks.WINDUP);
+		// Set once a frame, or its shooting animation would start over
+		mob.setPose(mob instanceof Breeze && windup != null ? Pose.SHOOTING : player.getPose());
 		mob.setShiftKeyDown(player.isShiftKeyDown());
+		charge(player, mob, windup);
 		return mob;
+	}
+
+	// The player's attack winding up or firing a burst, shown as the mob shows its own; the server plays the sounds
+	private static void charge(Player player, Mob mob, Integer windup) {
+		boolean on = windup != null;
+		// By the copy: a new morph's attack can start in the tick the last one's ends
+		boolean starts = on && WINDING.put(player.getId(), mob) != mob;
+		if (!on) WINDING.remove(player.getId());
+		switch (mob) {
+			case Ghast ghast -> ghast.setCharging(on);
+			case Blaze blaze -> ((BlazeInvoker) blaze).tokio$setCharged(on);
+			// Its own tick swells and flashes it
+			case Creeper creeper -> creeper.setSwellDir(on ? 1 : -1);
+			case Evoker evoker -> evoker.getEntityData().set(SpellcasterIllagerAccessor.tokio$spell(), on ? FANGS : 0);
+			// The renderer finds the target by id in the client level; 0 draws no beam
+			case Guardian guardian -> ((GuardianInvoker) guardian).tokio$setActiveAttackTarget(on ? windup : 0);
+			case Warden warden -> {
+				if (starts) warden.handleEntityEvent((byte) 62);
+			}
+			default -> {
+			}
+		}
 	}
 
 	// How the player walks, swings, crouches and gets hurt, which the mob doesn't do by itself

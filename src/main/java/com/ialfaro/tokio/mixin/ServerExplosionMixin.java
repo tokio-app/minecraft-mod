@@ -11,12 +11,12 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 /**
  * Tokio's blasts pass other players by, unhurt and unpushed: the mod's own,
  * and those of what Tokio's commands made, like TNT, creepers and a ghast's
- * fireball.
+ * fireball. A morphed player's fireballs and skulls spare the player too.
  */
 @Mixin(ServerExplosion.class)
 abstract class ServerExplosionMixin {
 	@Redirect(method = "hurtEntities", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;ignoreExplosion(Lnet/minecraft/world/level/Explosion;)Z"))
 	private boolean tokio$spareOthers(Entity entity, Explosion explosion) {
-		return entity.ignoreExplosion(explosion) || Host.isOther(entity) && Host.tokios(explosion);
+		return entity.ignoreExplosion(explosion) || Host.spares(explosion, entity);
 	}
 }

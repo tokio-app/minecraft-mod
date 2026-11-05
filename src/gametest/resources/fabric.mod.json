@@ -11,9 +11,12 @@
 			"com.ialfaro.tokio.test.HazardsTest",
 			"com.ialfaro.tokio.test.HostOnlyTest",
 			"com.ialfaro.tokio.test.MorphTest",
-			"com.ialfaro.tokio.test.SpawnedTest"
+			"com.ialfaro.tokio.test.ShotsTest",
+			"com.ialfaro.tokio.test.SpawnedTest",
+			"com.ialfaro.tokio.test.StrikesTest"
 		],
 		"fabric-client-gametest": [
+			"com.ialfaro.tokio.test.AttackClientTest",
 			"com.ialfaro.tokio.test.GraceClientTest",
 			"com.ialfaro.tokio.test.HostOnlyClientTest",
 			"com.ialfaro.tokio.test.MorphClientTest"

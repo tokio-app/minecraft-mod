@@ -4,7 +4,9 @@
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
 		"AbstractCubeMobMixin",
+		"AreaEffectCloudMixin",
 		"AvatarMixin",
+		"DragonFireballMixin",
 		"EntityInvoker",
 		"EvokerFangsMixin",
 		"LightningBoltMixin",
@@ -16,10 +18,14 @@
 		"ServerExplosionMixin",
 		"ServerLevelMixin",
 		"SpiderAttackGoalMixin",
+		"ThrownSplashPotionMixin",
 		"WardenMixin"
 	],
 	"client": [
-		"client.FirstPersonHandsAndItemsRendererMixin"
+		"client.BlazeInvoker",
+		"client.FirstPersonHandsAndItemsRendererMixin",
+		"client.GuardianInvoker",
+		"client.SpellcasterIllagerAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1
