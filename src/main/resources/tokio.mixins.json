@@ -3,6 +3,7 @@
 	"package": "com.ialfaro.tokio.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
+		"AbstractCubeMobMixin",
 		"AvatarMixin",
 		"EntityInvoker",
 		"EvokerFangsMixin",

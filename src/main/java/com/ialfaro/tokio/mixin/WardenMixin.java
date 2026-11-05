@@ -9,11 +9,15 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Tokio's Warden gets angry at no player but the host: its anger picks targets apart from Mob.canAttack. */
+/**
+ * Tokio's Warden gets angry at no one in its grace, then at no player but the
+ * host: its anger picks targets apart from Mob.canAttack.
+ */
 @Mixin(Warden.class)
 abstract class WardenMixin {
 	@Inject(method = "canTargetEntity", at = @At("HEAD"), cancellable = true)
 	private void tokio$hostOnly(Entity entity, CallbackInfoReturnable<Boolean> cir) {
-		if (Host.isOther(entity) && Spawned.is((Warden) (Object) this)) cir.setReturnValue(false);
+		Warden warden = (Warden) (Object) this;
+		if (Spawned.is(warden) && (Host.isOther(entity) || Spawned.inGrace(warden))) cir.setReturnValue(false);
 	}
 }
